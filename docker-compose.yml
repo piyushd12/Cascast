@@ -1,0 +1,53 @@
+name: cascadia
+
+x-backend: &backend
+  build: ./backend
+  image: cascadia-backend
+  restart: unless-stopped
+  environment:
+    CASCADIA_REDIS_URL: redis://redis:6379/0
+    CASCADIA_DATABASE_URL: postgresql+asyncpg://cascadia:cascadia@postgres:5432/cascadia
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  depends_on:
+    redis: { condition: service_healthy }
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, retries: 20 }
+
+  postgres:
+    image: postgres:15-alpine
+    environment: { POSTGRES_USER: cascadia, POSTGRES_PASSWORD: cascadia, POSTGRES_DB: cascadia }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U cascadia"], interval: 3s, retries: 20 }
+
+  simulator:
+    <<: *backend
+    command: ["cascadia-simulator"]
+
+  risk-engine:
+    <<: *backend
+    command: ["cascadia-risk-engine"]
+    deploy: { replicas: 2 }   # consumer group: each tick is screened by exactly one replica
+
+  api:
+    <<: *backend
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      retries: 20
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports: ["8080:80"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
