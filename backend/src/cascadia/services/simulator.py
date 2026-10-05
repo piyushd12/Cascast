@@ -145,10 +145,11 @@ class GridTwin:
 
         # Demand growth can overload lines on its own
         before = self.alive.copy()
-        served_before = self.state.served.sum()
         self.alive, self.state = settle(self.grid, self.alive, self.load)
         tripped = np.flatnonzero(before & ~self.alive).tolist()
         if tripped:
+            # Same demand, pre-trip topology: otherwise demand drift reads as load shed
+            served_before = dc_power_flow(self.grid, before, self.load).served.sum()
             for e in tripped:
                 self.repair_at[e] = self.minute + self.rng.uniform(20, 60)
             self._event("cascade", f"Overload trips: {len(tripped)} line(s)", cause="Overload",
