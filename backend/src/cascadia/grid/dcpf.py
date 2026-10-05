@@ -63,8 +63,10 @@ def solve_flows(
         members = np.flatnonzero(label == c)
         slack[members[np.argmax(cap_bus[members])]] = True
 
-    A = grid.incidence[:, alive]
-    B = (A * grid.b[alive]) @ A.T
+    # Weighted Laplacian B = A diag(b) A^T, assembled by scatter-add (much faster than a matmul)
+    n, f, t, b = grid.n_bus, grid.f[alive], grid.t[alive], grid.b[alive]
+    idx = np.concatenate([f * n + f, t * n + t, f * n + t, t * n + f])
+    B = np.bincount(idx, weights=np.concatenate([b, b, -b, -b]), minlength=n * n).reshape(n, n)
     keep = ~slack
     theta = np.zeros(grid.n_bus)
     if keep.any():

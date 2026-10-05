@@ -26,7 +26,7 @@ def nominal_state() -> dict:
     res = dc_power_flow(g, alive, g.load)
     return {"tick": -1, "minute": 0, "clock": "Nominal", "weather": "clear", "load_factor": 1.0,
             "demand_mw": round(float(g.load.sum()), 1), "served_mw": round(float(res.served.sum()), 1),
-            "n_islands": res.n_islands, "alive": alive.astype(int).tolist(), "flow": r3(res.flow),
+            "n_islands": int(res.n_islands), "alive": alive.astype(int).tolist(), "flow": r3(res.flow),
             "loading": r3(np.abs(res.flow) / g.rating), "load": r3(g.load),
             "served": r3(res.served), "repairs": {}}
 
@@ -81,7 +81,7 @@ def whatif(live: LiveState, lines: list[int], load_scale: float = 1.0) -> dict:
             "shed_pct": round(100 * res.load_shed_frac, 2),
             "shed_mw": round(res.served_before_mw - res.served_after_mw, 1),
             "n_stages": res.n_stages,
-            "islands": res.final.n_islands,
+            "islands": int(res.final.n_islands),
             "stages": [{"tripped": s.tripped, "loading": r3(s.loading),
                         "served_mw": round(float(s.served_mw), 1)} for s in res.stages],
             "latency_ms": round(phys_ms, 2),

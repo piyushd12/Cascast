@@ -40,7 +40,7 @@ def batches(grid: Grid, data: dict, idx: np.ndarray, bs: int, device: str,
     if shuffle:
         idx = np.random.permutation(idx)
     for i in range(0, idx.size, bs):
-        j = np.sort(idx[i:i + bs])
+        j = idx[i:i + bs]
         xv, xe = build_features(grid, data["load"][j], data["served"][j], data["flow"][j],
                                 data["alive"][j], data["trip"][j])
         valid = data["alive"][j] & ~data["trip"][j]  # only in-service, untripped lines can fail

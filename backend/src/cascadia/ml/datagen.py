@@ -15,11 +15,15 @@ import os
 import time
 from concurrent.futures import ProcessPoolExecutor
 
-import numpy as np
+# Tiny matrices: one BLAS thread per worker process beats oversubscribing the CPU.
+for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
 
-from cascadia.config import settings
-from cascadia.grid.cascade import settle, simulate_cascade
-from cascadia.grid.model import load_grid
+import numpy as np  # noqa: E402
+
+from cascadia.config import settings  # noqa: E402
+from cascadia.grid.cascade import settle, simulate_cascade  # noqa: E402
+from cascadia.grid.model import load_grid  # noqa: E402
 
 FIELDS = ("load", "served", "flow", "alive", "trip", "failed", "stage", "shed")
 

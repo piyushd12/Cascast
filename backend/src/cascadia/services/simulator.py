@@ -164,7 +164,7 @@ class GridTwin:
             "load_factor": round(self.load_factor, 4),
             "demand_mw": round(float(self.load.sum()), 1),
             "served_mw": round(float(s.served.sum()), 1),
-            "n_islands": s.n_islands,
+            "n_islands": int(s.n_islands),
             "alive": self.alive.astype(np.int8).tolist(),
             "flow": bus.r3(s.flow),
             "loading": bus.r3(np.abs(s.flow) / g.rating),
