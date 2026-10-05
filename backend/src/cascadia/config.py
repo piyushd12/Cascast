@@ -36,3 +36,4 @@ settings = Settings()
 STATE_STREAM = "grid.state"
 RISK_STREAM = "grid.risk"
 EVENT_STREAM = "grid.events"
+COMMAND_STREAM = "grid.commands"
