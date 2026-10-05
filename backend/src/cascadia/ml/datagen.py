@@ -6,9 +6,10 @@ Each scenario:
   3. trip 1-3 additional branches (the contingency) and simulate one random realisation of
      the cascade under stochastic protection (see grid/cascade.py).
 
-Labels are single random outcomes. Trained with a proper scoring rule (cross-entropy), the
-network learns the underlying failure probabilities that physics could only estimate by
-Monte Carlo.
+Each scenario is simulated DRAWS times with independent randomness. The labels are the
+empirical failure frequency of every branch and the mean load shed: low-variance targets
+for the probabilities that physics can only estimate by Monte Carlo. One raw outcome
+(`failed`) is kept for ranking metrics.
 
 Usage:  uv run python -m cascadia.ml.datagen --n 100000
 """
@@ -31,13 +32,14 @@ from cascadia.grid.cascade import settle, simulate_cascade  # noqa: E402
 from cascadia.grid.dcpf import dc_power_flow  # noqa: E402
 from cascadia.grid.model import load_grid  # noqa: E402
 
-FIELDS = ("load", "served", "flow", "alive", "trip", "flow1", "served1", "failed", "stage",
+FIELDS = ("load", "served", "flow", "alive", "trip", "flow1", "served1", "failed", "fail_prob",
           "shed")
+DRAWS = 8
 
 
 def sample_load(rng: np.random.Generator, nominal: np.ndarray) -> np.ndarray:
     # Half the scenarios are "normal" operation, half are stressed (peaks, heatwaves).
-    scale = rng.uniform(0.7, 1.1) if rng.random() < 0.5 else rng.uniform(1.0, 1.45)
+    scale = rng.uniform(0.75, 1.05) if rng.random() < 0.5 else rng.uniform(1.0, 1.28)
     return nominal * scale * rng.lognormal(0.0, 0.08, nominal.size)
 
 
@@ -53,7 +55,8 @@ def scenario(rng: np.random.Generator) -> dict[str, np.ndarray]:
     k = min(rng.choice([1, 2, 3], p=[0.6, 0.3, 0.1]), candidates.size)
     trip = np.zeros(grid.n_branch, dtype=bool)
     trip[rng.choice(candidates, k, replace=False)] = True
-    res = simulate_cascade(grid, load, trip, alive=alive, pre=pre, rng=rng)
+    runs = [simulate_cascade(grid, load, trip, alive=alive, pre=pre, rng=rng)
+            for _ in range(DRAWS)]
     first = dc_power_flow(grid, alive & ~trip, load)  # stage-1 physics (a GNN input)
     return {
         "load": load.astype(np.float32),
@@ -63,9 +66,9 @@ def scenario(rng: np.random.Generator) -> dict[str, np.ndarray]:
         "trip": trip,
         "flow1": first.flow.astype(np.float32),
         "served1": first.served.astype(np.float32),
-        "failed": res.failed,
-        "stage": res.stage.astype(np.int8),
-        "shed": np.float32(res.load_shed_frac),
+        "failed": runs[0].failed,
+        "fail_prob": np.mean([r.failed for r in runs], axis=0).astype(np.float16),
+        "shed": np.float32(np.mean([r.load_shed_frac for r in runs])),
     }
 
 
@@ -98,11 +101,10 @@ def main() -> None:
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     np.savez_compressed(a.out, **data)
 
-    cascades = data["failed"].any(1)
-    print(f"{a.n} scenarios in {dt:.1f}s -> {a.out}")
-    print(f"  with cascade: {cascades.mean():.1%}   positive branch labels: "
-          f"{data['failed'].mean():.2%}   mean shed: {data['shed'].mean():.3f}   "
-          f"max stages: {data['stage'].max()}")
+    print(f"{a.n} scenarios x {DRAWS} draws in {dt:.1f}s -> {a.out}")
+    print(f"  cascade in first draw: {data['failed'].any(1).mean():.1%}   mean branch failure "
+          f"prob: {data['fail_prob'].astype(np.float32).mean():.3%}   "
+          f"mean expected shed: {data['shed'].mean():.4f}")
 
 
 if __name__ == "__main__":

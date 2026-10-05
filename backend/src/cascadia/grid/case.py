@@ -4,10 +4,10 @@ Run once (needs the `train` dependency group):  uv run python -m cascadia.grid.c
 
 * Topology, reactances, loads and generator capacities come from pandapower's case118.
 * Our DC solver is cross-checked against pandapower's `rundcpp` on the original dispatch.
-* The case has no meaningful thermal ratings, so ratings are derived to make the grid
-  N-1 secure at nominal load with a small margin: rating = MARGIN * max(|f_base|, max_k |f_k|)
-  over all single-branch contingencies k. Cascades then require stress (high load or
-  multiple outages), mirroring how real grids are planned.
+* The case has no meaningful thermal ratings, so ratings are derived the way planners size
+  lines: N-1 secure at nominal load (rating >= MARGIN x the worst flow over all single-branch
+  contingencies) with normal-operation headroom (rating >= HEADROOM x the base-case flow).
+  Cascades then require stress (peak demand, heatwaves, multiple outages).
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from cascadia.grid.dcpf import dc_power_flow, islands, solve_flows
 from cascadia.grid.model import Grid
 
 MARGIN = 1.05
+HEADROOM = 1.3
 MIN_RATING_MW = 10.0
 # MATPOWER column indices
 PD, BUS_I, GEN_BUS, PG, PMAX, GEN_STATUS = 2, 0, 0, 1, 8, 7
@@ -80,7 +81,8 @@ def build() -> dict:
         a = alive.copy()
         a[k] = False
         worst = np.maximum(worst, np.abs(dc_power_flow(tmp, a, tmp.load).flow))
-    rating = np.maximum(MARGIN * worst, MIN_RATING_MW).round(1)
+    rating = np.maximum.reduce([MARGIN * worst, HEADROOM * np.abs(base),
+                                np.full_like(base, MIN_RATING_MW)]).round(1)
 
     # --- Layout for the dashboard -----------------------------------------------------
     g = nx.Graph()
@@ -95,7 +97,8 @@ def build() -> dict:
         br["base_flow_mw"] = round(float(base[e]), 3)
     for i, b in enumerate(d["buses"]):
         b["x"], b["y"] = round(float(xy[i, 0]), 4), round(float(xy[i, 1]), 4)
-    d["validation"] = {"max_flow_error_vs_pandapower_mw": err, "rating_margin": MARGIN}
+    d["validation"] = {"max_flow_error_vs_pandapower_mw": err, "rating_margin": MARGIN,
+                       "rating_headroom": HEADROOM}
     return d
 
 

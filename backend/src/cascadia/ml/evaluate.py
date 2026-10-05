@@ -78,7 +78,7 @@ def monte_carlo_reference(data: dict, idx: np.ndarray) -> tuple[np.ndarray, np.n
 def benchmark(session: ort.InferenceSession, repeats: int = 5) -> dict:
     """Full N-1 screen of a stressed operating point: GNN vs physics."""
     grid, rng = load_grid(), np.random.default_rng(1)
-    load = grid.load * 1.1
+    load = grid.load * 1.15
     alive, pre = settle(grid, np.ones(grid.n_branch, dtype=bool), load)
     cont = np.flatnonzero(alive)
 

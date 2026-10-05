@@ -46,7 +46,8 @@ def batches(grid: Grid, data: dict, idx: np.ndarray, bs: int, device: str,
                                 data["served1"][j])
         valid = data["alive"][j] & ~data["trip"][j]  # only in-service, untripped lines can fail
         yield tuple(torch.from_numpy(np.asarray(a)).to(device, non_blocking=True) for a in
-                    (xv, xe, data["failed"][j].astype(np.float32), valid, data["shed"][j]))
+                    (xv, xe, data["fail_prob"][j].astype(np.float32), valid, data["shed"][j],
+                     data["failed"][j].astype(np.float32)))
 
 
 def build_model(grid: Grid, **kw) -> CascadeGNN:
@@ -63,14 +64,17 @@ def loss_fn(edge_logit, shed_logit, y, valid, shed):
 
 
 @torch.no_grad()
-def predict(model, grid, data, idx, device, bs=1024):
-    """Return (edge logits on valid edges, labels on valid edges, shed pred, shed true)."""
+def predict(model, grid, data, idx, device, bs=1024, soft=False):
+    """Return (edge logits on valid edges, labels on valid edges, shed pred, shed true).
+
+    Labels are the raw single-draw outcomes, or the multi-draw frequencies if `soft`.
+    """
     model.eval()
     logits, labels, sp, st = [], [], [], []
-    for xv, xe, y, valid, shed in batches(grid, data, idx, bs, device):
+    for xv, xe, prob, valid, shed, raw in batches(grid, data, idx, bs, device):
         el, sl = model(xv, xe)
         logits.append(el[valid].float().cpu())
-        labels.append(y[valid].cpu())
+        labels.append((prob if soft else raw)[valid].cpu())
         sp.append(torch.sigmoid(sl).float().cpu())
         st.append(shed.cpu())
     return torch.cat(logits), torch.cat(labels), torch.cat(sp), torch.cat(st)
@@ -111,8 +115,8 @@ def main() -> None:
 
     tr = parts["train"]
     valid = data["alive"][tr] & ~data["trip"][tr]
-    pos = data["failed"][tr][valid].mean()
-    print(f"device={device} train={tr.size} positive rate={pos:.4f}")
+    pos = data["fail_prob"][tr][valid].astype(np.float32).mean()
+    print(f"device={device} train={tr.size} mean failure probability={pos:.4f}")
 
     model = build_model(grid, hidden=a.hidden, layers=a.layers).to(device)
     n_params = sum(p.numel() for p in model.parameters())
@@ -120,11 +124,11 @@ def main() -> None:
     steps = a.epochs * -(-tr.size // a.bs)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=a.lr, total_steps=steps, pct_start=0.1)
 
-    history, best = [], -1.0
+    history, best = [], float("inf")
     for epoch in range(1, a.epochs + 1):
         model.train()
         t0, total, nb = time.perf_counter(), 0.0, 0
-        for xv, xe, y, v, shed in batches(grid, data, tr, a.bs, device, shuffle=True):
+        for xv, xe, y, v, shed, _ in batches(grid, data, tr, a.bs, device, shuffle=True):
             with torch.autocast(device, dtype=torch.bfloat16, enabled=device == "cuda"):
                 el, sl = model(xv, xe)
             loss = loss_fn(el.float(), sl.float(), y, v, shed)
@@ -135,25 +139,30 @@ def main() -> None:
             sched.step()
             total, nb = total + loss.item(), nb + 1
 
-        lg, lb, sp, st = predict(model, grid, data, parts["val"], device)
-        ap_val = average_precision_score(lb.numpy(), lg.numpy())
+        lg, lb, sp, st = predict(model, grid, data, parts["val"], device, soft=True)
+        p = torch.sigmoid(lg)
+        active = (lb > 0) | (p > 0.005)
+        prob_mae = (p - lb).abs()[active].mean().item()
+        _, raw, _, _ = predict(model, grid, data, parts["val"][:2000], device)
+        ap_val = average_precision_score(raw.numpy(), lg[: raw.numel()].numpy())
         mae = (sp - st).abs().mean().item()
         history.append({"epoch": epoch, "train_loss": total / nb, "val_pr_auc": ap_val,
-                        "val_shed_mae": mae, "seconds": time.perf_counter() - t0})
-        print(f"epoch {epoch:3d}  loss {total / nb:.4f}  val PR-AUC {ap_val:.4f}  "
-              f"shed MAE {mae:.4f}  ({history[-1]['seconds']:.0f}s)")
-        if ap_val > best:
-            best = ap_val
+                        "val_prob_mae": prob_mae, "val_shed_mae": mae,
+                        "seconds": time.perf_counter() - t0})
+        print(f"epoch {epoch:3d}  loss {total / nb:.4f}  val prob MAE {prob_mae:.4f}  "
+              f"PR-AUC {ap_val:.4f}  shed MAE {mae:.4f}  ({history[-1]['seconds']:.0f}s)")
+        if prob_mae < best:
+            best = prob_mae
             torch.save(model.state_dict(), CKPT)
 
     model.load_state_dict(torch.load(CKPT, map_location=device, weights_only=True))
-    lg, lb, _, _ = predict(model, grid, data, parts["val"], device)
+    lg, lb, _, _ = predict(model, grid, data, parts["val"], device, soft=True)
     scale, bias = fit_platt(lg, lb)
     meta = {"hidden": a.hidden, "layers": a.layers, "params": n_params,
             "platt_scale": scale, "platt_bias": bias, "epochs": a.epochs,
-            "best_val_pr_auc": best, "history": history}
+            "best_val_prob_mae": best, "history": history}
     (settings.data_dir / "train_meta.json").write_text(json.dumps(meta, indent=1))
-    print(f"best val PR-AUC {best:.4f}; Platt a={scale:.3f} b={bias:.3f}; "
+    print(f"best val prob MAE {best:.4f}; Platt a={scale:.3f} b={bias:.3f}; "
           f"{n_params:,} params -> {CKPT}")
 
 

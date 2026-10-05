@@ -18,7 +18,7 @@ import orjson
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import ORJSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from cascadia.api import copilot, ops
@@ -115,8 +115,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         t.cancel()
 
 
-app = FastAPI(title="Cascadia API", version="1.0.0", lifespan=lifespan,
-              default_response_class=ORJSONResponse)
+app = FastAPI(title="Cascadia API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
