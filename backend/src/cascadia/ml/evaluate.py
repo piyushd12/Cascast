@@ -189,7 +189,7 @@ def figures(history, prec, rec, conf, acc, gnn_p, ref_p, gnn_s, ref_s, curve, gn
         fig, ax = plt.subplots(figsize=(6.4, 3.8))
         xs = [c["n1_seconds"] for c in curve]
         ax.plot(xs, [c["prob_mae"] for c in curve], color=th["s2"], lw=2, marker="o", ms=5,
-                label="Monte Carlo physics")
+                label="Monte Carlo (labels = runs)")
         for c in curve:
             ax.annotate(f"{c['runs']}", (c["n1_seconds"], c["prob_mae"]), xytext=(0, 7),
                         textcoords="offset points", ha="center", fontsize=8, color=th["muted"])
@@ -201,7 +201,7 @@ def figures(history, prec, rec, conf, acc, gnn_p, ref_p, gnn_s, ref_s, curve, gn
         ax.set_xscale("log")
         ax.set(xlabel=f"Time to screen all {bench['contingencies']} contingencies (s, log)",
                ylabel="Error in failure probability\n(MAE vs reference)",
-               title="Accuracy vs compute (numbers = Monte Carlo runs per contingency)")
+               title="Accuracy vs compute")
         style(ax, th)
         ax.legend(frameon=False, labelcolor=th["ink2"], fontsize=9, loc="upper right")
         save(fig, "speedup", mode, th)
