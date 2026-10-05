@@ -1,6 +1,7 @@
 import numpy as np
 
-from cascadia.grid.dcpf import dc_power_flow, islands
+from cascadia.grid.cascade import settle
+from cascadia.grid.dcpf import dc_power_flow, islands, n1_flows
 
 
 def test_kirchhoff_current_law(grid):
@@ -37,3 +38,20 @@ def test_isolated_load_bus_is_shed(grid):
     res = dc_power_flow(grid, alive, grid.load)
     assert res.served[bus] == 0
     assert np.isclose(res.served.sum(), grid.load.sum() - grid.load[bus])
+
+
+def test_lodf_n1_flows_match_full_power_flow(grid, rng):
+    """The fast N-1 screen (LODF + analytic islanding) is exact under the DC model."""
+    for scale, n_pre in [(1.0, 0), (1.25, 2), (0.8, 3)]:
+        alive = np.ones(grid.n_branch, dtype=bool)
+        alive[rng.choice(grid.n_branch, n_pre, replace=False)] = False
+        load = grid.load * scale * rng.lognormal(0, 0.08, grid.n_bus)
+        alive, pre = settle(grid, alive, load)
+        cont, flow, served = n1_flows(grid, alive, load, pre)
+        assert (cont == np.flatnonzero(alive)).all()
+        for i, c in enumerate(cont):
+            a = alive.copy()
+            a[c] = False
+            ref = dc_power_flow(grid, a, load)
+            np.testing.assert_allclose(flow[i], ref.flow, atol=1e-6)
+            np.testing.assert_allclose(served[i], ref.served, atol=1e-6)
