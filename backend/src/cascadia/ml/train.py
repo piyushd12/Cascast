@@ -93,7 +93,7 @@ def fit_platt(logits: torch.Tensor, labels: torch.Tensor) -> tuple[float, float]
         return loss
 
     opt.step(closure)
-    return float(a), float(b)
+    return a.item(), b.item()
 
 
 def main() -> None:
@@ -140,19 +140,23 @@ def main() -> None:
             total, nb = total + loss.item(), nb + 1
 
         lg, lb, sp, st = predict(model, grid, data, parts["val"], device, soft=True)
-        p = torch.sigmoid(lg)
-        active = (lb > 0) | (p > 0.005)
-        prob_mae = (p - lb).abs()[active].mean().item()
+        # Select on validation cross-entropy over every valid edge: a proper scoring rule on a
+        # fixed set. (A mask that depends on the model's own predictions can be gamed by an
+        # underconfident model.) Probability MAE is reported on edges that can actually fail.
+        val_loss = F.binary_cross_entropy_with_logits(lg, lb).item()
+        prob_mae = (torch.sigmoid(lg) - lb).abs()[lb > 0].mean().item()
         _, raw, _, _ = predict(model, grid, data, parts["val"][:2000], device)
         ap_val = average_precision_score(raw.numpy(), lg[: raw.numel()].numpy())
         mae = (sp - st).abs().mean().item()
-        history.append({"epoch": epoch, "train_loss": total / nb, "val_pr_auc": ap_val,
+        history.append({"epoch": epoch, "train_loss": total / nb, "val_loss": val_loss,
+                        "val_pr_auc": ap_val,
                         "val_prob_mae": prob_mae, "val_shed_mae": mae,
                         "seconds": time.perf_counter() - t0})
-        print(f"epoch {epoch:3d}  loss {total / nb:.4f}  val prob MAE {prob_mae:.4f}  "
-              f"PR-AUC {ap_val:.4f}  shed MAE {mae:.4f}  ({history[-1]['seconds']:.0f}s)")
-        if prob_mae < best:
-            best = prob_mae
+        print(f"epoch {epoch:3d}  loss {total / nb:.4f}  val loss {val_loss:.5f}  "
+              f"val prob MAE {prob_mae:.4f}  PR-AUC {ap_val:.4f}  shed MAE {mae:.4f}  "
+              f"({history[-1]['seconds']:.0f}s)")
+        if val_loss < best:
+            best = val_loss
             torch.save(model.state_dict(), CKPT)
 
     model.load_state_dict(torch.load(CKPT, map_location=device, weights_only=True))
@@ -160,9 +164,9 @@ def main() -> None:
     scale, bias = fit_platt(lg, lb)
     meta = {"hidden": a.hidden, "layers": a.layers, "params": n_params,
             "platt_scale": scale, "platt_bias": bias, "epochs": a.epochs,
-            "best_val_prob_mae": best, "history": history}
+            "best_val_loss": best, "history": history}
     (settings.data_dir / "train_meta.json").write_text(json.dumps(meta, indent=1))
-    print(f"best val prob MAE {best:.4f}; Platt a={scale:.3f} b={bias:.3f}; "
+    print(f"best val loss {best:.5f}; Platt a={scale:.3f} b={bias:.3f}; "
           f"{n_params:,} params -> {CKPT}")
 
 
