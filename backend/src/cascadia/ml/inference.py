@@ -10,7 +10,7 @@ import numpy as np
 import onnxruntime as ort
 
 from cascadia.config import settings
-from cascadia.grid.dcpf import FlowResult
+from cascadia.grid.dcpf import FlowResult, dc_power_flow, n1_flows
 from cascadia.grid.model import Grid, load_grid
 from cascadia.ml.features import build_features
 
@@ -36,9 +36,17 @@ class RiskModel:
             providers=["CPUExecutionProvider"],
         )
 
-    def predict(self, load, served, flow, alive, trip) -> tuple[np.ndarray, np.ndarray]:
-        """Batched prediction. `trip` is (B, E) bool; other inputs broadcast. -> (prob, shed)."""
-        xv, xe = build_features(self.grid, load, served, flow, alive, trip)
+    def predict(self, load, served, flow, alive, trip, flow1=None, served1=None
+                ) -> tuple[np.ndarray, np.ndarray]:
+        """Batched prediction. `trip` is (B, E) bool; other inputs broadcast. -> (prob, shed).
+
+        `flow1`/`served1` (first-stage physics) are computed here when not supplied.
+        """
+        if flow1 is None:
+            first = [dc_power_flow(self.grid, alive & ~t, load) for t in trip]
+            flow1 = np.stack([r.flow for r in first])
+            served1 = np.stack([r.served for r in first])
+        xv, xe = build_features(self.grid, load, served, flow, alive, trip, flow1, served1)
         if xv.shape[0] != xe.shape[0]:
             xv = np.broadcast_to(xv, (xe.shape[0], *xv.shape[1:])).copy()
         prob, shed = self.session.run(None, {"node_x": xv, "edge_x": xe})
@@ -47,10 +55,10 @@ class RiskModel:
 
     def screen(self, load: np.ndarray, alive: np.ndarray, pre: FlowResult) -> Screening:
         t0 = time.perf_counter()
-        cont = np.flatnonzero(alive)
+        cont, flow1, served1 = n1_flows(self.grid, alive, load, pre)
         trip = np.zeros((cont.size, self.grid.n_branch), dtype=bool)
         trip[np.arange(cont.size), cont] = True
-        prob, shed = self.predict(load, pre.served, pre.flow, alive, trip)
+        prob, shed = self.predict(load, pre.served, pre.flow, alive, trip, flow1, served1)
         return Screening(
             contingency=cont,
             prob=prob,

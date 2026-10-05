@@ -55,8 +55,10 @@ class CascadeGNN(nn.Module):
         self.register_buffer("s_in", s_in)
         self.register_buffer("temperature", torch.ones(()))  # set by calibration
 
-        self.enc_v = nn.Sequential(nn.Linear(node_dim, hidden), nn.GELU(), nn.Linear(hidden, hidden))
-        self.enc_e = nn.Sequential(nn.Linear(edge_dim, hidden), nn.GELU(), nn.Linear(hidden, hidden))
+        self.enc_v = nn.Sequential(nn.Linear(node_dim, hidden), nn.GELU(),
+                                   nn.Linear(hidden, hidden))
+        self.enc_e = nn.Sequential(nn.Linear(edge_dim, hidden), nn.GELU(),
+                                   nn.Linear(hidden, hidden))
         self.blocks = nn.ModuleList(Block(hidden) for _ in range(layers))
         self.head_e = mlp(hidden, 1, hidden)
         self.head_g = mlp(2 * hidden, 1, hidden)

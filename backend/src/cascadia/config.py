@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     database_url: str = "postgresql+asyncpg://cascadia:cascadia@localhost:5432/cascadia"
 
-    # Simulator: one tick = `sim_minutes_per_tick` simulated minutes every `tick_seconds` real seconds.
+    # Simulator: each tick advances `sim_minutes_per_tick` simulated minutes,
+    # once every `tick_seconds` real seconds.
     tick_seconds: float = 1.0
     sim_minutes_per_tick: float = 2.0
     fault_rate_per_hour: float = 0.6  # random line faults per simulated hour (x3 during storms)
@@ -25,7 +26,8 @@ class Settings(BaseSettings):
 
     # Copilot (optional)
     anthropic_api_key: str | None = Field(
-        default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CASCADIA_ANTHROPIC_API_KEY")
+        default=None,
+        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CASCADIA_ANTHROPIC_API_KEY"),
     )
     copilot_model: str = "claude-opus-5-5"
 

@@ -23,9 +23,11 @@ import numpy as np  # noqa: E402
 
 from cascadia.config import settings  # noqa: E402
 from cascadia.grid.cascade import settle, simulate_cascade  # noqa: E402
+from cascadia.grid.dcpf import dc_power_flow  # noqa: E402
 from cascadia.grid.model import load_grid  # noqa: E402
 
-FIELDS = ("load", "served", "flow", "alive", "trip", "failed", "stage", "shed")
+FIELDS = ("load", "served", "flow", "alive", "trip", "flow1", "served1", "failed", "stage",
+          "shed")
 
 
 def sample_load(rng: np.random.Generator, nominal: np.ndarray) -> np.ndarray:
@@ -47,12 +49,15 @@ def scenario(rng: np.random.Generator) -> dict[str, np.ndarray]:
     trip = np.zeros(grid.n_branch, dtype=bool)
     trip[rng.choice(candidates, k, replace=False)] = True
     res = simulate_cascade(grid, load, trip, alive=alive, pre=pre)
+    first = dc_power_flow(grid, alive & ~trip, load)  # stage-1 physics (a GNN input)
     return {
         "load": load.astype(np.float32),
         "served": pre.served.astype(np.float32),
         "flow": pre.flow.astype(np.float32),
         "alive": alive,
         "trip": trip,
+        "flow1": first.flow.astype(np.float32),
+        "served1": first.served.astype(np.float32),
         "failed": res.failed,
         "stage": res.stage.astype(np.int8),
         "shed": np.float32(res.load_shed_frac),

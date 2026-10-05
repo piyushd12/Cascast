@@ -25,9 +25,10 @@ def nominal_state() -> dict:
     alive = np.ones(g.n_branch, dtype=bool)
     res = dc_power_flow(g, alive, g.load)
     return {"tick": -1, "minute": 0, "clock": "Nominal", "weather": "clear", "load_factor": 1.0,
-            "demand_mw": round(float(g.load.sum()), 1), "served_mw": round(float(res.served.sum()), 1),
-            "n_islands": int(res.n_islands), "alive": alive.astype(int).tolist(), "flow": r3(res.flow),
-            "loading": r3(np.abs(res.flow) / g.rating), "load": r3(g.load),
+            "demand_mw": round(float(g.load.sum()), 1),
+            "served_mw": round(float(res.served.sum()), 1),
+            "n_islands": int(res.n_islands), "alive": alive.astype(int).tolist(),
+            "flow": r3(res.flow), "loading": r3(np.abs(res.flow) / g.rating), "load": r3(g.load),
             "served": r3(res.served), "repairs": {}}
 
 

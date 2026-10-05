@@ -42,7 +42,8 @@ def batches(grid: Grid, data: dict, idx: np.ndarray, bs: int, device: str,
     for i in range(0, idx.size, bs):
         j = idx[i:i + bs]
         xv, xe = build_features(grid, data["load"][j], data["served"][j], data["flow"][j],
-                                data["alive"][j], data["trip"][j])
+                                data["alive"][j], data["trip"][j], data["flow1"][j],
+                                data["served1"][j])
         valid = data["alive"][j] & ~data["trip"][j]  # only in-service, untripped lines can fail
         yield tuple(torch.from_numpy(np.asarray(a)).to(device, non_blocking=True) for a in
                     (xv, xe, data["failed"][j].astype(np.float32), valid, data["shed"][j]))

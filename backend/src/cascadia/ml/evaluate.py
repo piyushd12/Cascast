@@ -28,7 +28,7 @@ from sklearn.metrics import (
 
 from cascadia.config import BACKEND_DIR, settings
 from cascadia.grid.cascade import simulate_cascade
-from cascadia.grid.dcpf import dc_power_flow
+from cascadia.grid.dcpf import dc_power_flow, n1_flows
 from cascadia.grid.model import load_grid
 from cascadia.ml.features import build_features
 from cascadia.ml.train import CKPT, build_model, load_dataset, predict, split
@@ -64,9 +64,10 @@ def benchmark(session: ort.InferenceSession, repeats: int = 5) -> dict:
         for e in range(grid.n_branch):
             simulate_cascade(grid, load, [e], alive=alive, pre=pre)
 
-    def gnn():
-        trip = np.eye(grid.n_branch, dtype=bool)
-        xv, xe = build_features(grid, load, pre.served, pre.flow, alive, trip)
+    def gnn():  # includes the exact first-stage physics (LODF) the GNN consumes
+        cont, flow1, served1 = n1_flows(grid, alive, load, pre)
+        trip = np.eye(grid.n_branch, dtype=bool)[cont]
+        xv, xe = build_features(grid, load, pre.served, pre.flow, alive, trip, flow1, served1)
         session.run(None, {"node_x": xv, "edge_x": xe})
 
     def best_of(fn):

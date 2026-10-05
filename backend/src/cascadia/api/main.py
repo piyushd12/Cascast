@@ -53,7 +53,7 @@ class Hub:
         if latest := await bus.latest(r, STATE_STREAM):
             self.live.state, self.live.live = latest, True
         self.live.risk = await bus.latest(r, RISK_STREAM)
-        for mid, fields in reversed(await r.xrevrange(EVENT_STREAM, count=50)):
+        for _, fields in reversed(await r.xrevrange(EVENT_STREAM, count=50)):
             self.live.events.append(bus.decode(fields))
         while True:
             try:

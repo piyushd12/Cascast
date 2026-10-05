@@ -9,7 +9,9 @@ def test_feature_shapes(grid):
     alive = np.ones(grid.n_branch, dtype=bool)
     pre = dc_power_flow(grid, alive, grid.load)
     trip = np.eye(grid.n_branch, dtype=bool)[:7]
-    xv, xe = build_features(grid, grid.load, pre.served, pre.flow, alive, trip)
+    first = [dc_power_flow(grid, alive & ~t, grid.load) for t in trip]
+    xv, xe = build_features(grid, grid.load, pre.served, pre.flow, alive, trip,
+                            np.stack([r.flow for r in first]), np.stack([r.served for r in first]))
     assert xv.shape == (7, grid.n_bus, len(NODE_FEATURES))
     assert xe.shape == (7, grid.n_branch, len(EDGE_FEATURES))
     assert xv.dtype == xe.dtype == np.float32
