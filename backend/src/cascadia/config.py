@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(
         default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CASCADIA_ANTHROPIC_API_KEY")
     )
-    copilot_model: str = "claude-sonnet-5-5"
+    copilot_model: str = "claude-opus-5-5"
 
 
 settings = Settings()
