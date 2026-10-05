@@ -3,7 +3,12 @@
 Each scenario:
   1. scale nominal demand by a stress factor and add per-bus noise,
   2. apply 0-2 pre-existing outages and let the grid settle (a stable but degraded state),
-  3. trip 1-3 additional branches (the contingency) and simulate the cascade.
+  3. trip 1-3 additional branches (the contingency) and simulate one random realisation of
+     the cascade under stochastic protection (see grid/cascade.py).
+
+Labels are single random outcomes. Trained with a proper scoring rule (cross-entropy), the
+network learns the underlying failure probabilities that physics could only estimate by
+Monte Carlo.
 
 Usage:  uv run python -m cascadia.ml.datagen --n 100000
 """
@@ -48,7 +53,7 @@ def scenario(rng: np.random.Generator) -> dict[str, np.ndarray]:
     k = min(rng.choice([1, 2, 3], p=[0.6, 0.3, 0.1]), candidates.size)
     trip = np.zeros(grid.n_branch, dtype=bool)
     trip[rng.choice(candidates, k, replace=False)] = True
-    res = simulate_cascade(grid, load, trip, alive=alive, pre=pre)
+    res = simulate_cascade(grid, load, trip, alive=alive, pre=pre, rng=rng)
     first = dc_power_flow(grid, alive & ~trip, load)  # stage-1 physics (a GNN input)
     return {
         "load": load.astype(np.float32),
