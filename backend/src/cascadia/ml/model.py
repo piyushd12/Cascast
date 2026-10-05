@@ -1,19 +1,24 @@
 """CascadeGNN: an edge-aware message-passing network with a global context vector.
 
 The topology is fixed (out-of-service branches are a feature, not removed edges), so the
-graph structure is baked in as constant gather indices and scatter matrices. Every op is a
+graph structure is baked in as constant gather indices and incidence matrices. Every op is a
 dense batched tensor op, which keeps inference fast and makes ONNX export trivial.
 
-Per layer (all residual, pre-LayerNorm MLPs):
-    edges  : h_e <- h_e + phi_e([h_e, h_from, h_to, g])
-    nodes  : h_v <- h_v + phi_v([h_v, sum_out h_e, sum_in h_e, g])
-    global : g   <- g   + phi_g([g, mean h_v, mean h_e])
-Heads: per-branch failure logit, and graph-level load-shed fraction.
+Per block (pre-LayerNorm, residual):
+    edges  : h_e <- h_e + W_o · GELU(W_e h_e + (W_f h_v)[from] + (W_t h_v)[to] + W_g g)
+    nodes  : h_v <- h_v + W_o · GELU(W_v h_v + W_s Σ_out h_e + W_r Σ_in h_e + W_g g)
+    global : g   <- g   + MLP([g, mean h_v, mean h_e])
+
+This is an MLP over [edge, from-bus, to-bus, global] written so that bus terms are projected
+once per bus and then gathered, instead of concatenating wide per-edge tensors. Same function
+class, a fraction of the memory traffic (inference is memory-bound on CPU).
+Heads: per-branch failure logit, and graph-level expected load-shed fraction.
 """
 
 from __future__ import annotations
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
 
 
@@ -25,35 +30,47 @@ def mlp(d_in: int, d_out: int, hidden: int) -> nn.Sequential:
 class Block(nn.Module):
     def __init__(self, h: int):
         super().__init__()
-        self.edge = mlp(4 * h, h, 2 * h)
-        self.node = mlp(4 * h, h, 2 * h)
-        self.glob = mlp(3 * h, h, 2 * h)
+        self.ln_v, self.ln_e, self.ln_e2, self.ln_g = (nn.LayerNorm(h) for _ in range(4))
+        self.e_self = nn.Linear(h, h)
+        self.e_from = nn.Linear(h, h, bias=False)
+        self.e_to = nn.Linear(h, h, bias=False)
+        self.e_glob = nn.Linear(h, h, bias=False)
+        self.e_out = nn.Linear(h, h)
+        self.v_self = nn.Linear(h, h)
+        self.v_out = nn.Linear(h, h, bias=False)
+        self.v_in = nn.Linear(h, h, bias=False)
+        self.v_glob = nn.Linear(h, h, bias=False)
+        self.v_proj = nn.Linear(h, h)
+        self.glob = mlp(3 * h, h, h)
 
     def forward(self, hv: Tensor, he: Tensor, g: Tensor, f: Tensor, t: Tensor,
                 s_out: Tensor, s_in: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        E = he.shape[1]
-        ge = g.unsqueeze(1).expand(-1, E, -1)
-        he = he + self.edge(torch.cat([he, hv[:, f], hv[:, t], ge], -1))
-        gv = g.unsqueeze(1).expand(-1, hv.shape[1], -1)
-        hv = hv + self.node(torch.cat([hv, s_out @ he, s_in @ he, gv], -1))
+        nv, ng = self.ln_v(hv), self.ln_g(g)
+        src = self.e_from(nv) + self.e_glob(ng).unsqueeze(1)  # fold global in at bus level
+        x = self.e_self(self.ln_e(he)) + src[:, f] + self.e_to(nv)[:, t]
+        he = he + self.e_out(F.gelu(x))
+        ne = self.ln_e2(he)
+        y = (self.v_self(nv) + self.v_out(s_out @ ne) + self.v_in(s_in @ ne)
+             + self.v_glob(ng).unsqueeze(1))
+        hv = hv + self.v_proj(F.gelu(y))
         g = g + self.glob(torch.cat([g, hv.mean(1), he.mean(1)], -1))
         return hv, he, g
 
 
 class CascadeGNN(nn.Module):
     def __init__(self, f: Tensor, t: Tensor, n_bus: int, node_dim: int, edge_dim: int,
-                 hidden: int = 64, layers: int = 6):
+                 hidden: int = 48, layers: int = 6):
         super().__init__()
+        self.register_buffer("f", f.long())
+        self.register_buffer("t", t.long())
+        # Bus-branch incidence (from / to ends): aggregation is one batched matmul each.
         E = f.numel()
         s_out = torch.zeros(n_bus, E)
         s_in = torch.zeros(n_bus, E)
         s_out[f, torch.arange(E)] = 1.0
         s_in[t, torch.arange(E)] = 1.0
-        self.register_buffer("f", f.long())
-        self.register_buffer("t", t.long())
         self.register_buffer("s_out", s_out)
         self.register_buffer("s_in", s_in)
-        self.register_buffer("temperature", torch.ones(()))  # set by calibration
 
         self.enc_v = nn.Sequential(nn.Linear(node_dim, hidden), nn.GELU(),
                                    nn.Linear(hidden, hidden))
@@ -76,12 +93,14 @@ class CascadeGNN(nn.Module):
 
 
 class Exported(nn.Module):
-    """Inference wrapper: calibrated probabilities instead of logits."""
+    """Inference wrapper: Platt-calibrated probabilities instead of logits."""
 
-    def __init__(self, model: CascadeGNN):
+    def __init__(self, model: CascadeGNN, scale: float = 1.0, bias: float = 0.0):
         super().__init__()
         self.model = model
+        self.register_buffer("scale", torch.tensor(float(scale)))
+        self.register_buffer("bias", torch.tensor(float(bias)))
 
     def forward(self, xv: Tensor, xe: Tensor) -> tuple[Tensor, Tensor]:
         edge_logit, shed_logit = self.model(xv, xe)
-        return torch.sigmoid(edge_logit / self.model.temperature), torch.sigmoid(shed_logit)
+        return torch.sigmoid(self.scale * edge_logit + self.bias), torch.sigmoid(shed_logit)
