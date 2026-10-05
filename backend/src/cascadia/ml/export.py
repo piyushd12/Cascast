@@ -23,7 +23,7 @@ def main() -> None:
     meta = json.loads((settings.data_dir / "train_meta.json").read_text())
     model = build_model(grid, hidden=meta["hidden"], layers=meta["layers"])
     model.load_state_dict(torch.load(CKPT, map_location="cpu", weights_only=True))
-    wrapped = Exported(model).eval()
+    wrapped = Exported(model, meta["platt_scale"], meta["platt_bias"]).eval()
 
     xv = torch.randn(4, grid.n_bus, len(NODE_FEATURES))
     xe = torch.randn(4, grid.n_branch, len(EDGE_FEATURES))

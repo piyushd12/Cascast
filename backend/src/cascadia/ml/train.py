@@ -54,8 +54,9 @@ def build_model(grid: Grid, **kw) -> CascadeGNN:
                       len(NODE_FEATURES), len(EDGE_FEATURES), **kw)
 
 
-def loss_fn(edge_logit, shed_logit, y, valid, shed, pos_weight):
-    bce = F.binary_cross_entropy_with_logits(edge_logit, y, pos_weight=pos_weight, reduction="none")
+def loss_fn(edge_logit, shed_logit, y, valid, shed):
+    """Cross-entropy is a proper scoring rule: on random outcomes it learns probabilities."""
+    bce = F.binary_cross_entropy_with_logits(edge_logit, y, reduction="none")
     edge_loss = (bce * valid).sum() / valid.sum()
     shed_loss = F.binary_cross_entropy_with_logits(shed_logit, shed)
     return edge_loss + 2.0 * shed_loss
@@ -75,18 +76,20 @@ def predict(model, grid, data, idx, device, bs=1024):
     return torch.cat(logits), torch.cat(labels), torch.cat(sp), torch.cat(st)
 
 
-def fit_temperature(logits: torch.Tensor, labels: torch.Tensor) -> float:
-    log_t = torch.zeros((), requires_grad=True)
-    opt = torch.optim.LBFGS([log_t], lr=0.1, max_iter=100)
+def fit_platt(logits: torch.Tensor, labels: torch.Tensor) -> tuple[float, float]:
+    """Platt scaling: p = sigmoid(a * logit + b), fitted on held-out validation data."""
+    a = torch.ones((), requires_grad=True)
+    b = torch.zeros((), requires_grad=True)
+    opt = torch.optim.LBFGS([a, b], lr=0.1, max_iter=200)
 
     def closure():
         opt.zero_grad()
-        loss = F.binary_cross_entropy_with_logits(logits / log_t.exp(), labels)
+        loss = F.binary_cross_entropy_with_logits(a * logits + b, labels)
         loss.backward()
         return loss
 
     opt.step(closure)
-    return float(log_t.exp())
+    return float(a), float(b)
 
 
 def main() -> None:
@@ -95,7 +98,7 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--bs", type=int, default=256)
     ap.add_argument("--lr", type=float, default=2e-3)
-    ap.add_argument("--hidden", type=int, default=64)
+    ap.add_argument("--hidden", type=int, default=32)
     ap.add_argument("--layers", type=int, default=6)
     a = ap.parse_args()
 
@@ -109,8 +112,7 @@ def main() -> None:
     tr = parts["train"]
     valid = data["alive"][tr] & ~data["trip"][tr]
     pos = data["failed"][tr][valid].mean()
-    pos_weight = torch.tensor(min(20.0, (1 - pos) / pos), device=device)
-    print(f"device={device} train={tr.size} positive rate={pos:.4f} pos_weight={pos_weight:.1f}")
+    print(f"device={device} train={tr.size} positive rate={pos:.4f}")
 
     model = build_model(grid, hidden=a.hidden, layers=a.layers).to(device)
     n_params = sum(p.numel() for p in model.parameters())
@@ -125,7 +127,7 @@ def main() -> None:
         for xv, xe, y, v, shed in batches(grid, data, tr, a.bs, device, shuffle=True):
             with torch.autocast(device, dtype=torch.bfloat16, enabled=device == "cuda"):
                 el, sl = model(xv, xe)
-            loss = loss_fn(el.float(), sl.float(), y, v, shed, pos_weight)
+            loss = loss_fn(el.float(), sl.float(), y, v, shed)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -146,14 +148,13 @@ def main() -> None:
 
     model.load_state_dict(torch.load(CKPT, map_location=device, weights_only=True))
     lg, lb, _, _ = predict(model, grid, data, parts["val"], device)
-    temp = fit_temperature(lg, lb)
-    model.temperature.fill_(temp)
-    torch.save(model.state_dict(), CKPT)
-    meta = {"hidden": a.hidden, "layers": a.layers, "params": n_params, "temperature": temp,
-            "epochs": a.epochs, "best_val_pr_auc": best, "history": history,
-            "pos_weight": float(pos_weight)}
+    scale, bias = fit_platt(lg, lb)
+    meta = {"hidden": a.hidden, "layers": a.layers, "params": n_params,
+            "platt_scale": scale, "platt_bias": bias, "epochs": a.epochs,
+            "best_val_pr_auc": best, "history": history}
     (settings.data_dir / "train_meta.json").write_text(json.dumps(meta, indent=1))
-    print(f"best val PR-AUC {best:.4f}; temperature {temp:.3f}; {n_params:,} params -> {CKPT}")
+    print(f"best val PR-AUC {best:.4f}; Platt a={scale:.3f} b={bias:.3f}; "
+          f"{n_params:,} params -> {CKPT}")
 
 
 if __name__ == "__main__":
