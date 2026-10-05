@@ -48,12 +48,12 @@ export default function LivePage({ grid }: { grid: Grid }) {
         <Stat label="Demand" value={fmtMW(state.demand_mw)} sub={`load factor ${state.load_factor.toFixed(2)}`} />
         <Stat label="Load shed now" value={fmtMW(shed)} tone={shed > 1 ? '#e5484d' : undefined}
           sub={`${outLines} branch${outLines === 1 ? '' : 'es'} out · ${state.n_islands} island${state.n_islands > 1 ? 's' : ''}`} />
-        <Stat label="Worst N-1 outcome" value={risk ? `${risk.worst_shed_pct.toFixed(2)}%` : '—'}
-          tone={risk && risk.worst_shed_pct > 1 ? '#ec835a' : undefined} sub="of demand lost, single failure" />
+        <Stat label="Worst N-1 risk" value={risk ? `${risk.worst_shed_pct.toFixed(2)}%` : '—'}
+          tone={risk && risk.worst_shed_pct > 1 ? '#ec835a' : undefined} sub="expected demand lost, single failure" />
         <Stat label="GNN screen latency" value={risk ? `${risk.latency_ms.toFixed(1)} ms` : '—'}
           sub={risk ? `${risk.n_screened} cascades / tick` : undefined} />
-        <Stat label="Live accuracy" value={acc && acc.checked ? `${(acc.recall * 100).toFixed(0)}%` : '—'}
-          sub={acc && acc.checked ? `recall · ${(acc.precision * 100).toFixed(0)}% precision · ${acc.checked} checks` : 'vs physics, sampled'} />
+        <Stat label="Live audit vs physics" value={acc && acc.checked ? `±${(acc.prob_mae * 100).toFixed(1)} pp` : '—'}
+          sub={acc && acc.checked ? `probability error · ${acc.checked} Monte Carlo checks` : `vs ${acc?.mc_runs ?? 40}-run Monte Carlo`} />
       </div>
 
       <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -88,7 +88,7 @@ export default function LivePage({ grid }: { grid: Grid }) {
                   className="flex w-full items-center gap-3 border-b border-line/60 px-4 py-2 text-left text-sm hover:bg-panel-2">
                   <span className="w-16 font-mono text-ink">#{c.line}</span>
                   <span className="flex-1 text-xs text-ink-2">
-                    {c.n_fail > 0 ? `${c.n_fail} cascading trip${c.n_fail > 1 ? 's' : ''}` : 'overload risk'}
+                    {c.n_fail > 0 ? `${c.n_fail} likely trip${c.n_fail > 1 ? 's' : ''}` : `max P(trip) ${(c.max_prob * 100).toFixed(0)}%`}
                   </span>
                   <span className={clsx('num w-16 text-right font-medium', c.shed_pct > 2 ? 'text-critical' : 'text-serious')}>
                     {c.shed_pct.toFixed(2)}%
@@ -128,7 +128,7 @@ export default function LivePage({ grid }: { grid: Grid }) {
         <Panel title="Demand vs served" right={<ChartKey items={[['#3987e5', 'Served'], ['#a9b6c3', 'Demand']]} />}>
           <div className="h-52 p-2"><DemandChart data={history} /></div>
         </Panel>
-        <Panel title="Worst single-failure load shed" right={<span className="text-xs text-muted">% of demand</span>}>
+        <Panel title="Worst single-failure expected load shed" right={<span className="text-xs text-muted">% of demand</span>}>
           <div className="h-52 p-2"><RiskChart data={history} /></div>
         </Panel>
       </div>

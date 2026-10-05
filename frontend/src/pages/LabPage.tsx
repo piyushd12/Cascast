@@ -4,9 +4,11 @@ import { Pause, Play, Shuffle, X, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { GridMap, MapLegend } from '../components/GridMap'
-import { Button, Panel } from '../components/ui'
+import { Button, Panel, Segmented } from '../components/ui'
 import { api, type Grid, type WhatIfResult } from '../lib/api'
 import { useLive } from '../lib/live'
+
+type View = 'replay' | 'gnn' | 'mc'
 
 export default function LabPage({ grid }: { grid: Grid }) {
   const [params, setParams] = useSearchParams()
@@ -15,63 +17,74 @@ export default function LabPage({ grid }: { grid: Grid }) {
   const [scale, setScale] = useState(1)
   const [stage, setStage] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const [mapView, setMapView] = useState<View>('gnn')
   const { state, risk } = useLive()
 
-  const run = useMutation({ mutationFn: () => api.whatif(lines, scale), onSuccess: () => { setStage(0); setPlaying(true) } })
+  const run = useMutation({
+    mutationFn: () => api.whatif(lines, scale),
+    onSuccess: () => { setStage(0); setPlaying(false); setMapView('gnn') },
+  })
   const res = run.data
 
   // Run immediately when opened with ?lines=...
   useEffect(() => { if (lines.length) run.mutate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const animating = playing && !!res && stage < res.physics.n_stages
+  const animating = playing && !!res && stage < res.sample.n_stages
   useEffect(() => {
     if (!animating) return
     const t = window.setTimeout(() => setStage((s) => s + 1), 1100)
     return () => window.clearTimeout(t)
   }, [animating, stage])
 
-  const toggle = (l: number) => {
-    const next = lines.includes(l) ? lines.filter((x) => x !== l) : [...lines, l].slice(-5)
+  const select = (next: number[]) => {
     setLines(next)
     setParams(next.length ? { lines: next.join(',') } : {}, { replace: true })
   }
-
+  const toggle = (l: number) => select(lines.includes(l) ? lines.filter((x) => x !== l) : [...lines, l].slice(-5))
   const randomN2 = () => {
     const alive = grid.branches.filter((b) => state?.alive[b.id] ?? true).map((b) => b.id)
-    const pick = [...alive].sort(() => Math.random() - 0.5).slice(0, 2)
-    setLines(pick)
-    setParams({ lines: pick.join(',') }, { replace: true })
+    select([...alive].sort(() => Math.random() - 0.5).slice(0, 2))
   }
 
   const view = res && res.lines.join(',') === [...lines].sort((a, b) => a - b).join(',') ? res : null
-  const stageLoading = view ? view.physics.stages[Math.min(stage, view.physics.stages.length - 1)]?.loading : undefined
+  const replay = view && mapView === 'replay'
+  const stageLoading = replay ? view.sample.stages[Math.min(stage, view.sample.stages.length - 1)]?.loading : undefined
   const stageAlive = useMemo(() => {
-    if (!view || !state) return state?.alive
-    return state.alive.map((a, e) => (a && !(view.physics.stage[e] >= 0 && view.physics.stage[e] <= stage) ? 1 : 0))
-  }, [view, state, stage])
+    if (!state) return undefined
+    if (!view) return state.alive
+    if (!replay) return state.alive.map((a, e) => (a && !lines.includes(e) ? 1 : 0))
+    return state.alive.map((a, e) => (a && !(view.sample.stage[e] >= 0 && view.sample.stage[e] <= stage) ? 1 : 0))
+  }, [view, replay, state, stage, lines])
+
+  const mode = !view ? 'loading' : replay ? 'cascade' : 'risk'
+  const riskValues = view ? (mapView === 'mc' ? view.monte_carlo.prob : view.gnn.prob) : undefined
 
   return (
-    <div className="grid gap-4 p-4 lg:p-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-4 p-4 lg:p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
       <Panel title="What-If Lab"
-        right={<span className="text-xs text-muted">Click branches to select a contingency (up to 5)</span>}>
-        <GridMap grid={grid} mode={view ? 'cascade' : 'loading'}
-          loading={stageLoading ?? state?.loading} alive={stageAlive}
-          stage={view?.physics.stage} currentStage={stage} predicted={view?.gnn.predicted}
+        right={view
+          ? <Segmented value={mapView} onChange={(v) => { setMapView(v); setStage(0); setPlaying(v === 'replay') }}
+              options={[{ value: 'gnn', label: 'GNN probability' }, { value: 'mc', label: 'Monte Carlo' }, { value: 'replay', label: 'Replay one cascade' }]} />
+          : <span className="text-xs text-muted">Click branches to select a contingency (up to 5)</span>}>
+        <GridMap grid={grid} mode={mode}
+          loading={stageLoading ?? state?.loading} alive={stageAlive} risk={riskValues}
+          stage={replay ? view.sample.stage : undefined} currentStage={stage}
+          predicted={replay ? view.gnn.likely : undefined}
           selected={lines} onLineClick={toggle} className="h-[62vh] min-h-[420px]" />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2.5">
-          <MapLegend mode={view ? 'cascade' : 'loading'} />
-          {view && view.physics.n_stages > 0 && (
+          <MapLegend mode={mode} />
+          {replay && view.sample.n_stages > 0 && (
             <div className="flex items-center gap-2">
               <Button onClick={() => {
                 if (animating) return setPlaying(false)
-                if (stage >= view.physics.n_stages) setStage(0)
+                if (stage >= view.sample.n_stages) setStage(0)
                 setPlaying(true)
               }} aria-label={animating ? 'Pause replay' : 'Play replay'}>
                 {animating ? <Pause size={14} /> : <Play size={14} />}
               </Button>
-              <input type="range" min={0} max={view.physics.n_stages} value={stage} aria-label="Cascade stage"
+              <input type="range" min={0} max={view.sample.n_stages} value={stage} aria-label="Cascade stage"
                 onChange={(e) => { setPlaying(false); setStage(Number(e.target.value)) }} className="w-40 accent-[#3987e5]" />
-              <span className="num w-20 text-xs text-ink-2">stage {stage}/{view.physics.n_stages}</span>
+              <span className="num w-20 text-xs text-ink-2">stage {stage}/{view.sample.n_stages}</span>
             </div>
           )}
         </div>
@@ -100,28 +113,26 @@ export default function LabPage({ grid }: { grid: Grid }) {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" disabled={!lines.length || run.isPending} onClick={() => run.mutate()}>
-                <Zap size={14} />{run.isPending ? 'Simulating…' : 'Run cascade'}
+                <Zap size={14} />{run.isPending ? 'Simulating…' : 'Run'}
               </Button>
               <Button onClick={randomN2}><Shuffle size={14} />Random N-2</Button>
-              {risk?.top[0] && (
-                <Button onClick={() => { setLines([risk.top[0].line]); setParams({ lines: String(risk.top[0].line) }, { replace: true }) }}>
-                  Riskiest N-1
-                </Button>
-              )}
+              {risk?.top[0] && <Button onClick={() => select([risk.top[0].line])}>Riskiest N-1</Button>}
             </div>
             {run.isError && <div className="text-sm text-critical">{String(run.error)}</div>}
           </div>
         </Panel>
 
-        {view && <Results res={view} stage={stage} />}
-        {!view && (
+        {view ? <Results res={view} stage={replay ? stage : view.sample.n_stages} /> : (
           <Panel title="How it works">
-            <p className="p-4 text-sm leading-relaxed text-ink-2">
-              The selected branches are tripped on the <b className="text-ink">current live operating point</b>. The
-              graph neural network predicts which other branches will overload and trip, and how much demand will be
-              lost — in about a millisecond. The physics simulator then plays out the real cascade stage by stage so
-              you can compare the two.
-            </p>
+            <div className="space-y-2 p-4 text-sm leading-relaxed text-ink-2">
+              <p>The selected branches are tripped on the <b className="text-ink">current live operating point</b>.</p>
+              <p>Protection is <b className="text-ink">stochastic</b>: relay trip thresholds vary, and relays next to a
+                failure can misoperate (“hidden failures”). The same contingency can fizzle out or black out a region,
+                so the right answer is a <b className="text-ink">probability</b>.</p>
+              <p>The GNN predicts every branch’s failure probability in one pass. Physics needs a Monte Carlo of
+                100 full cascade simulations to estimate the same thing — compare them side by side, then replay one
+                random realisation stage by stage.</p>
+            </div>
           </Panel>
         )}
       </div>
@@ -130,49 +141,80 @@ export default function LabPage({ grid }: { grid: Grid }) {
 }
 
 function Results({ res, stage }: { res: WhatIfResult; stage: number }) {
-  const speedup = res.physics.latency_ms / Math.max(res.gnn.latency_ms, 0.01)
-  const st = res.physics.stages[Math.min(stage, res.physics.stages.length - 1)]
+  const speedup = res.monte_carlo.latency_ms / Math.max(res.gnn.latency_ms, 0.01)
+  const top = useMemo(() => {
+    const ids = res.gnn.prob.map((_, e) => e).filter((e) => Math.max(res.gnn.prob[e], res.monte_carlo.prob[e]) >= 0.05)
+    return ids.sort((a, b) => res.monte_carlo.prob[b] + res.gnn.prob[b] - res.monte_carlo.prob[a] - res.gnn.prob[a]).slice(0, 10)
+  }, [res])
+  const s = res.sample
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <Card title="GNN prediction" tone="#fab219"
-          rows={[['Cascading trips', res.gnn.predicted.length], ['Load shed', `${res.gnn.shed_pct.toFixed(2)}%`],
-            ['Latency', `${res.gnn.latency_ms.toFixed(2)} ms`]]} />
-        <Card title="Physics ground truth" tone="#e5484d"
-          rows={[['Cascading trips', res.physics.failed.length], ['Load shed', `${res.physics.shed_pct.toFixed(2)}%`],
-            ['Latency', `${res.physics.latency_ms.toFixed(1)} ms`]]} />
+        <Card title="CascadeGNN" tone="#3987e5"
+          rows={[['Expected shed', `${res.gnn.shed_pct.toFixed(2)}%`], ['Likely trips (p ≥ 50%)', res.gnn.likely.length],
+            ['Time', `${res.gnn.latency_ms.toFixed(1)} ms`]]} />
+        <Card title={`Monte Carlo · ${res.monte_carlo.runs} runs`} tone="#d95926"
+          rows={[['Expected shed', `${res.monte_carlo.expected_shed_pct.toFixed(2)}%`], ['Likely trips (p ≥ 50%)', res.monte_carlo.likely.length],
+            ['Time', `${res.monte_carlo.latency_ms.toFixed(0)} ms`]]} />
       </div>
-      <Panel title="Agreement">
-        <div className="grid grid-cols-4 gap-2 p-4 text-center">
-          <Metric k="Jaccard" v={res.agreement.jaccard.toFixed(2)} />
-          <Metric k="Correct" v={res.agreement.true_positive} />
-          <Metric k="Missed" v={res.agreement.false_negative} bad={res.agreement.false_negative > 0} />
-          <Metric k="False alarms" v={res.agreement.false_positive} bad={res.agreement.false_positive > 0} />
+
+      <Panel title="Failure probability by branch" right={<span className="text-xs text-muted">GNN vs Monte Carlo</span>}>
+        <div className="max-h-[260px] overflow-y-auto px-4 py-3">
+          {top.length === 0 && <div className="py-3 text-center text-sm text-ink-2">No branch has a ≥5% chance of failing.</div>}
+          {top.map((e) => (
+            <div key={e} className="grid grid-cols-[48px_1fr] items-center gap-2 py-1">
+              <span className="font-mono text-xs text-ink">#{e}</span>
+              <div className="space-y-0.5">
+                <Bar v={res.gnn.prob[e]} color="#3987e5" />
+                <Bar v={res.monte_carlo.prob[e]} color="#d95926" />
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="border-t border-line px-4 py-2.5 text-xs text-ink-2">
-          GNN answered <b className="text-ink">{speedup.toFixed(0)}×</b> faster than the simulator
-          {res.physics.n_stages > 0 && <> · stage {stage}: {st?.tripped.length ?? 0} branch(es) tripped, {Math.round(st?.served_mw ?? 0)} MW served</>}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-4 py-2.5 text-xs text-ink-2">
+          <span>Probability error <b className="num text-ink">±{(res.agreement.prob_mae * 100).toFixed(1)} pp</b></span>
+          <span>Expected-shed error <b className="num text-ink">{res.agreement.shed_error_pct.toFixed(2)} pp</b></span>
+          <span>GNN <b className="text-ink">{speedup.toFixed(0)}×</b> faster</span>
         </div>
       </Panel>
-      {res.physics.failed.length > 0 && (
-        <Panel title="Cascade sequence">
-          <ol className="space-y-1.5 p-4 text-sm">
-            {res.physics.stages.map((s, k) => s.tripped.length > 0 && (
-              <li key={k} className={clsx('flex gap-3', k > stage && 'opacity-40')}>
-                <span className="num w-14 shrink-0 text-xs text-muted">{k === 0 ? 'Initial' : `Stage ${k}`}</span>
-                <span className="flex flex-wrap gap-1">
-                  {s.tripped.map((l) => (
-                    <span key={l} className={clsx('rounded px-1.5 font-mono text-xs',
-                      res.gnn.predicted.includes(l) || k === 0 ? 'bg-critical/15 text-critical' : 'bg-line text-ink-2')}>#{l}</span>
-                  ))}
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="border-t border-line px-4 py-2 text-xs text-muted">Red = predicted by the GNN (or initial trip); grey = missed.</div>
-        </Panel>
-      )}
+
+      <Panel title="One random realisation" right={<span className="text-xs text-muted">P(any cascade) {(res.monte_carlo.cascade_prob * 100).toFixed(0)}% · p90 shed {res.monte_carlo.shed_p90_pct.toFixed(1)}%</span>}>
+        {s.failed.length === 0
+          ? <div className="p-4 text-sm text-ink-2">In this run the grid absorbed the contingency — nothing else tripped.</div>
+          : (
+            <ol className="space-y-1.5 p-4 text-sm">
+              {s.stages.map((st, k) => st.tripped.length > 0 && (
+                <li key={k} className={clsx('flex gap-3', k > stage && 'opacity-40')}>
+                  <span className="num w-14 shrink-0 text-xs text-muted">{k === 0 ? 'Initial' : `Stage ${k}`}</span>
+                  <span className="flex flex-wrap gap-1">
+                    {st.tripped.map((l) => (
+                      <span key={l} title={s.hidden.includes(l) ? 'relay misoperation (hidden failure)' : undefined}
+                        className={clsx('rounded px-1.5 font-mono text-xs',
+                          s.hidden.includes(l) ? 'bg-warn/15 text-warn' : 'bg-critical/15 text-critical')}>
+                        #{l}{s.hidden.includes(l) && ' ⚡'}
+                      </span>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        <div className="border-t border-line px-4 py-2 text-xs text-muted">
+          This run shed {s.shed_pct.toFixed(2)}% of demand · ⚡ = relay misoperation · switch the map to “Replay” to watch it
+        </div>
+      </Panel>
     </>
+  )
+}
+
+function Bar({ v, color }: { v: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 flex-1 rounded-full bg-line">
+        <div className="h-1.5 rounded-full" style={{ width: `${Math.max(1, v * 100)}%`, background: color }} />
+      </div>
+      <span className="num w-9 text-right text-[11px] text-ink-2">{Math.round(v * 100)}%</span>
+    </div>
   )
 }
 
@@ -183,17 +225,8 @@ function Card({ title, tone, rows }: { title: string; tone: string; rows: [strin
         <span className="h-2 w-2 rounded-full" style={{ background: tone }} />{title}
       </div>
       {rows.map(([k, v]) => (
-        <div key={k} className="flex justify-between py-0.5 text-sm"><span className="text-ink-2">{k}</span><span className="num">{v}</span></div>
+        <div key={k} className="flex justify-between gap-2 py-0.5 text-sm"><span className="text-ink-2">{k}</span><span className="num">{v}</span></div>
       ))}
-    </div>
-  )
-}
-
-function Metric({ k, v, bad }: { k: string; v: string | number; bad?: boolean }) {
-  return (
-    <div>
-      <div className={clsx('num text-lg font-semibold', bad ? 'text-serious' : 'text-ink')}>{v}</div>
-      <div className="text-[11px] text-muted">{k}</div>
     </div>
   )
 }

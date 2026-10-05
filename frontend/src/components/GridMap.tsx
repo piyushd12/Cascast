@@ -144,7 +144,7 @@ export function GridMap(p: Props) {
           <Row k="Rating" v={`${h.rating_mw.toFixed(0)} MW`} />
           {p.loading && <Row k="Loading" v={fmtPct(p.loading[h.id])} />}
           {p.alive && !p.alive[h.id] && <Row k="Status" v="Out of service" />}
-          {mode === 'risk' && p.risk && <Row k="Worst-case failure prob." v={fmtPct(p.risk[h.id])} />}
+          {mode === 'risk' && p.risk && <Row k="Failure probability" v={fmtPct(p.risk[h.id])} />}
           {mode === 'cascade' && p.stage && p.stage[h.id] >= 0 &&
             <Row k="Failed at" v={p.stage[h.id] === 0 ? 'initial trip' : `stage ${p.stage[h.id]}`} />}
           {predicted.has(h.id) && <Row k="GNN" v="predicted to fail" />}
@@ -165,9 +165,9 @@ function Row({ k, v }: { k: string; v: string }) {
 export function MapLegend({ mode }: { mode: MapMode }) {
   const items =
     mode === 'risk'
-      ? [['#2a3746', 'Low'], ['#ec835a', 'Elevated'], ['#e5484d', 'Likely to fail (worst N-1)']]
+      ? [['#2a3746', 'Low'], ['#ec835a', 'Elevated'], ['#e5484d', 'Likely to fail (p ≥ 50%)']]
       : mode === 'cascade'
-        ? [['#ffffff', 'Initial trip'], ['#e5484d', 'Cascaded failure'], ['#fab219', 'GNN prediction (halo)']]
+        ? [['#ffffff', 'Initial trip'], ['#e5484d', 'Failed in this run'], ['#fab219', 'GNN: likely to fail (halo)']]
         : [['#3b6ea8', '< 60%'], ['#f5a524', '60–85%'], ['#ec835a', '85–100%'], ['#e5484d', 'Overloaded']]
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
