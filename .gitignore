@@ -22,3 +22,4 @@ dist/
 .idea/
 .DS_Store
 onnxruntime_profile_*.json
+.playwright-mcp/
