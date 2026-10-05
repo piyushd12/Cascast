@@ -1,8 +1,8 @@
 """Risk engine: consumes grid states, screens every N-1 contingency with the GNN in one
 batch, and publishes a risk assessment. Scales horizontally through a Redis consumer group.
 
-Every `verify_every` ticks it replays a sample of contingencies through the physics
-simulator and tracks how well the GNN agrees in production ("live accuracy").
+Every `verify_every` ticks it replays a few contingencies through Monte Carlo physics and
+tracks how closely the GNN's probabilities match in production ("live accuracy").
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import numpy as np
 from redis.exceptions import ResponseError
 
 from cascadia.config import RISK_STREAM, STATE_STREAM, settings
-from cascadia.grid.cascade import simulate_cascade
+from cascadia.grid.cascade import monte_carlo
 from cascadia.grid.dcpf import FlowResult
 from cascadia.grid.model import Grid, load_grid
 from cascadia.ml.inference import RiskModel, Screening, get_model
@@ -29,19 +29,24 @@ CRITICAL_SHED = 0.005  # contingencies shedding > 0.5% of demand are "critical"
 TOP_K = 15
 
 
+MC_RUNS = 40
+
+
 @dataclass
 class LiveAccuracy:
-    tp: int = 0
-    fp: int = 0
-    fn: int = 0
+    """Running agreement between GNN probabilities and Monte Carlo estimates."""
+
     checked: int = 0
+    prob_abs_err: float = 0.0
+    prob_n: int = 0
     shed_abs_err: float = 0.0
+    hits: int = 0  # most likely failure (by MC) also ranked first by the GNN
 
     def as_dict(self) -> dict:
-        p = self.tp / (self.tp + self.fp) if self.tp + self.fp else 1.0
-        r = self.tp / (self.tp + self.fn) if self.tp + self.fn else 1.0
-        return {"checked": self.checked, "precision": round(p, 4), "recall": round(r, 4),
-                "shed_mae_pct": round(100 * self.shed_abs_err / max(self.checked, 1), 3)}
+        return {"checked": self.checked, "mc_runs": MC_RUNS,
+                "prob_mae": round(self.prob_abs_err / max(self.prob_n, 1), 4),
+                "shed_mae_pct": round(100 * self.shed_abs_err / max(self.checked, 1), 3),
+                "top1_agreement": round(self.hits / max(self.checked, 1), 3)}
 
 
 def state_arrays(s: dict) -> tuple[np.ndarray, np.ndarray, FlowResult]:
@@ -78,17 +83,19 @@ def assess(grid: Grid, sc: Screening) -> dict:
 
 
 def verify(grid: Grid, load, alive, pre, sc: Screening, acc: LiveAccuracy,
-           rng: np.random.Generator, k: int = 6) -> None:
-    """Replay the riskiest and some random contingencies through physics."""
-    idx = np.unique(np.r_[np.argsort(-sc.shed)[: k // 2],
-                          rng.choice(sc.contingency.size, k // 2, replace=False)])
+           rng: np.random.Generator, k: int = 2) -> None:
+    """Check the riskiest and one random contingency against Monte Carlo physics."""
+    idx = np.unique(np.r_[np.argsort(-sc.shed)[:k], rng.choice(sc.contingency.size, 1)])
     for i in idx:
-        res = simulate_cascade(grid, load, [sc.contingency[i]], alive=alive, pre=pre)
-        pred = sc.prob[i] >= FAIL_P
-        acc.tp += int((pred & res.failed).sum())
-        acc.fp += int((pred & ~res.failed).sum())
-        acc.fn += int((~pred & res.failed).sum())
-        acc.shed_abs_err += abs(float(sc.shed[i]) - res.load_shed_frac)
+        mc = monte_carlo(grid, load, [sc.contingency[i]], alive, pre, MC_RUNS, rng)
+        active = (mc.fail_prob > 0) | (sc.prob[i] > 0.02)
+        acc.prob_abs_err += float(np.abs(sc.prob[i] - mc.fail_prob)[active].sum())
+        acc.prob_n += int(active.sum())
+        acc.shed_abs_err += abs(float(sc.shed[i]) - mc.expected_shed)
+        if mc.fail_prob.max() > 0:
+            acc.hits += int(np.argmax(sc.prob[i]) == np.argmax(mc.fail_prob))
+        else:
+            acc.hits += int(sc.prob[i].max() < FAIL_P)
         acc.checked += 1
 
 

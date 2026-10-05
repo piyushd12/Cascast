@@ -82,7 +82,7 @@ class GridTwin:
         if not lines:
             return None
         res = simulate_cascade(self.grid, self.load, lines, alive=self.alive, pre=self.state,
-                               record=True)
+                               record=True, rng=self.rng)
         self.alive = res.alive
         self.state = res.final
         for e in lines:  # damaged equipment: hours to repair
@@ -93,10 +93,14 @@ class GridTwin:
         sev = "cascade" if cascaded else "fault"
         title = (f"{cause}: line {lines[0]}" + (f" +{len(lines) - 1}" if len(lines) > 1 else "")
                  + (f" → {len(cascaded)} cascading trips" if cascaded else ""))
+        n_hidden = int(res.hidden.sum())
+        if n_hidden:
+            title += f" ({n_hidden} relay misoperation{'s' if n_hidden > 1 else ''})"
         return self._event(
             sev, title, cause=cause, lines=lines, cascade=cascaded,
-            stages=[s.tripped for s in res.stages], shed_mw=round(res.served_before_mw
-                                                                   - res.served_after_mw, 1),
+            hidden=np.flatnonzero(res.hidden).tolist(),
+            stages=[s.tripped for s in res.stages],
+            shed_mw=round(res.served_before_mw - res.served_after_mw, 1),
             shed_pct=round(100 * res.load_shed_frac, 2),
         )
 

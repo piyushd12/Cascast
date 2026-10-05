@@ -35,9 +35,10 @@ def test_state_falls_back_to_nominal(client):
 def test_whatif(client):
     r = client.post("/api/whatif", json={"lines": [7, 8], "load_scale": 1.25}).json()
     assert r["lines"] == [7, 8]
-    assert len(r["gnn"]["prob"]) == 186
-    assert r["physics"]["stages"][0]["tripped"] == [7, 8]
-    assert 0 <= r["agreement"]["jaccard"] <= 1
+    assert len(r["gnn"]["prob"]) == len(r["monte_carlo"]["prob"]) == 186
+    assert r["monte_carlo"]["runs"] == 100
+    assert r["sample"]["stages"][0]["tripped"] == [7, 8]
+    assert 0 <= r["agreement"]["likely_jaccard"] <= 1
 
 
 def test_whatif_validation(client):

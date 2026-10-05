@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from cascadia.grid.cascade import simulate_cascade
+from cascadia.grid.cascade import monte_carlo, simulate_cascade
 from cascadia.grid.dcpf import FlowResult, dc_power_flow
 from cascadia.grid.model import load_grid
 from cascadia.ml.inference import get_model
@@ -51,46 +51,65 @@ class LiveState:
         return load, alive, pre
 
 
-def whatif(live: LiveState, lines: list[int], load_scale: float = 1.0) -> dict:
-    """Trip `lines` on the current operating point: GNN prediction vs physics ground truth."""
+def whatif(live: LiveState, lines: list[int], load_scale: float = 1.0, runs: int = 100,
+           seed: int | None = None) -> dict:
+    """Trip `lines` on the current operating point.
+
+    Returns the GNN's failure probabilities, a Monte Carlo estimate from `runs` physics
+    simulations, and one recorded random realisation of the cascade for replay.
+    """
     g, model = load_grid(), get_model()
     load, alive, pre = live.arrays(load_scale)
     overloaded = alive & (np.abs(pre.flow) > g.rating)
     trip = np.zeros(g.n_branch, dtype=bool)
     trip[lines] = True
     trip &= alive
+    rng = np.random.default_rng(seed)
 
     t0 = time.perf_counter()
     prob, shed = model.predict(load, pre.served, pre.flow, alive, trip[None])
     gnn_ms = (time.perf_counter() - t0) * 1000
     t0 = time.perf_counter()
-    res = simulate_cascade(g, load, trip, alive=alive, pre=pre, record=True)
-    phys_ms = (time.perf_counter() - t0) * 1000
+    mc = monte_carlo(g, load, trip, alive, pre, runs, rng)
+    mc_ms = (time.perf_counter() - t0) * 1000
+    sample = simulate_cascade(g, load, trip, alive=alive, pre=pre, record=True, rng=rng)
 
-    pred = prob[0] >= FAIL_P
-    tp = int((pred & res.failed).sum())
-    union = int((pred | res.failed).sum())
+    p = prob[0]
+    active = (mc.fail_prob > 0) | (p > 0.02)
+    likely_gnn, likely_mc = p >= FAIL_P, mc.fail_prob >= FAIL_P
+    union = int((likely_gnn | likely_mc).sum())
     return {
         "lines": np.flatnonzero(trip).tolist(),
         "load_scale": load_scale,
         "pre_overloaded": np.flatnonzero(overloaded).tolist(),
-        "gnn": {"prob": r3(prob[0]), "shed_pct": round(100 * float(shed[0]), 2),
-                "predicted": np.flatnonzero(pred).tolist(), "latency_ms": round(gnn_ms, 2)},
-        "physics": {
-            "failed": np.flatnonzero(res.failed).tolist(),
-            "stage": res.stage.tolist(),
-            "shed_pct": round(100 * res.load_shed_frac, 2),
-            "shed_mw": round(res.served_before_mw - res.served_after_mw, 1),
-            "n_stages": res.n_stages,
-            "islands": int(res.final.n_islands),
-            "stages": [{"tripped": s.tripped, "loading": r3(s.loading),
-                        "served_mw": round(float(s.served_mw), 1)} for s in res.stages],
-            "latency_ms": round(phys_ms, 2),
+        "gnn": {"prob": r3(p), "shed_pct": round(100 * float(shed[0]), 2),
+                "likely": np.flatnonzero(likely_gnn).tolist(), "latency_ms": round(gnn_ms, 2)},
+        "monte_carlo": {
+            "runs": runs, "prob": r3(mc.fail_prob),
+            "likely": np.flatnonzero(likely_mc).tolist(),
+            "expected_shed_pct": round(100 * mc.expected_shed, 2),
+            "shed_p50_pct": round(100 * float(np.median(mc.shed)), 2),
+            "shed_p90_pct": round(100 * float(np.percentile(mc.shed, 90)), 2),
+            "cascade_prob": round(float((mc.shed > 0).mean()), 3),
+            "latency_ms": round(mc_ms, 1),
         },
-        "agreement": {"jaccard": round(tp / union, 3) if union else 1.0,
-                      "true_positive": tp,
-                      "false_positive": int((pred & ~res.failed).sum()),
-                      "false_negative": int((~pred & res.failed).sum())},
+        "sample": {
+            "failed": np.flatnonzero(sample.failed).tolist(),
+            "hidden": np.flatnonzero(sample.hidden).tolist(),
+            "stage": sample.stage.tolist(),
+            "shed_pct": round(100 * sample.load_shed_frac, 2),
+            "n_stages": sample.n_stages,
+            "islands": int(sample.final.n_islands),
+            "stages": [{"tripped": s.tripped, "loading": r3(s.loading),
+                        "served_mw": round(float(s.served_mw), 1)} for s in sample.stages],
+        },
+        "agreement": {
+            "prob_mae": round(float(np.abs(p - mc.fail_prob)[active].mean()), 4)
+            if active.any() else 0.0,
+            "likely_jaccard": round(int((likely_gnn & likely_mc).sum()) / union, 3)
+            if union else 1.0,
+            "shed_error_pct": round(abs(100 * float(shed[0]) - 100 * mc.expected_shed), 2),
+        },
     }
 
 

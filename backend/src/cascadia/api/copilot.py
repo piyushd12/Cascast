@@ -19,15 +19,17 @@ MAX_TURNS = 8
 SYSTEM = """You are the Operator Copilot for Cascadia, a real-time digital twin of the IEEE \
 118-bus transmission grid (118 buses, 186 branches, DC power-flow physics).
 
-A graph neural network screens every single-branch (N-1) contingency each second and predicts \
-which branches would trip in the resulting cascade and how much load would be shed. You help \
+A graph neural network screens every single-branch (N-1) contingency each second and \
+predicts the probability that each branch trips in the resulting cascade and the expected \
+load shed. You help \
 grid operators understand risk and decide what to do.
 
 Ground every claim in tool results; never invent line numbers or values. Branches are \
 identified by integer id (0-185). "Shed" is the fraction of total demand that would be lost. \
-When useful, compare the GNN prediction with the physics ground truth returned by \
-simulate_contingency. When recommending actions (e.g. demand response), quantify the effect \
-with evaluate_load_relief before recommending it.
+Protection is stochastic (relay thresholds vary; exposed relays can misoperate), so speak \
+in probabilities and expected load shed. When useful, compare the GNN with the Monte Carlo \
+physics estimate returned by simulate_contingency. When recommending actions (e.g. demand \
+response), quantify the effect with evaluate_load_relief before recommending it.
 
 Be concise and operational: lead with the answer, use short bullet points, cite line ids and \
 percentages."""
@@ -46,8 +48,10 @@ TOOLS = [
           "out-of-service lines, most heavily loaded lines, and the riskiest contingencies.",
           {}, []),
     _tool("simulate_contingency",
-          "Trip one or more branches on the current operating point. Returns the GNN's "
-          "prediction and the physics simulator's ground truth (cascade stages, load shed).",
+          "Trip one or more branches on the current operating point. Protection is "
+          "stochastic, so outcomes are probabilities: returns the GNN's predicted failure "
+          "probabilities and expected load shed, a 100-run Monte Carlo physics estimate, and "
+          "one random realisation of the cascade.",
           {"lines": {"type": "array", "items": {"type": "integer"},
                      "description": "Branch ids to trip (0-185)."},
            "load_scale": {"type": "number",
@@ -82,13 +86,26 @@ def _status(live: ops.LiveState) -> dict:
     return out
 
 
+def _top(prob: list[float], k: int = 8) -> list[dict]:
+    order = sorted(range(len(prob)), key=lambda e: -prob[e])[:k]
+    return [{"line": e, "prob": prob[e]} for e in order if prob[e] >= 0.05]
+
+
 def _brief_whatif(res: dict) -> dict:
-    """Drop per-branch arrays the model doesn't need."""
-    phys = {k: v for k, v in res["physics"].items() if k not in ("stage", "stages")}
-    phys["stages"] = [s["tripped"] for s in res["physics"]["stages"]]
-    gnn = {k: v for k, v in res["gnn"].items() if k != "prob"}
-    return {"lines": res["lines"], "load_scale": res["load_scale"], "gnn_prediction": gnn,
-            "physics_ground_truth": phys, "agreement": res["agreement"]}
+    """Summarise: top failure probabilities instead of 186-long arrays."""
+    gnn, mc, sample = res["gnn"], res["monte_carlo"], res["sample"]
+    return {
+        "lines": res["lines"], "load_scale": res["load_scale"],
+        "gnn_prediction": {"expected_shed_pct": gnn["shed_pct"], "top_risks": _top(gnn["prob"]),
+                           "latency_ms": gnn["latency_ms"]},
+        "monte_carlo_physics": {k: mc[k] for k in ("runs", "expected_shed_pct", "shed_p90_pct",
+                                                   "cascade_prob", "latency_ms")}
+        | {"top_risks": _top(mc["prob"])},
+        "one_random_realisation": {"failed": sample["failed"], "relay_misoperations":
+                                   sample["hidden"], "shed_pct": sample["shed_pct"],
+                                   "stages": [s["tripped"] for s in sample["stages"]]},
+        "agreement": res["agreement"],
+    }
 
 
 def run_tool(live: ops.LiveState, name: str, args: dict) -> dict:
