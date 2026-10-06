@@ -22,3 +22,14 @@ def test_operator_trip_and_restore(grid):
     twin.apply({"cmd": "restore_all"})
     twin.step(1.0)
     assert twin.alive[10]
+
+
+def test_twin_recovers_from_a_major_disturbance(grid):
+    """Restoration must not deadlock on island re-synchronisation or re-close into overloads."""
+    twin = GridTwin(grid, seed=3, minute=2 * 60.0)  # night: low demand
+    twin.apply({"cmd": "trip", "lines": list(range(0, grid.n_branch, 4))})
+    assert (~twin.alive).sum() > 40
+    for _ in range(4 * 30):  # 4 h
+        twin.step(2.0)
+    assert (~twin.alive).sum() <= 10
+    assert not any(e.get("cause") == "Overload" for e in twin.events)  # no re-close churn

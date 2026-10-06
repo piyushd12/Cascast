@@ -52,6 +52,7 @@ class GridTwin:
     state: FlowResult = field(init=False)
     load: np.ndarray = field(init=False)
     events: list[dict] = field(default_factory=list)
+    blocked_since: float | None = None  # sim minute since which repaired lines can't re-close
 
     def __post_init__(self):
         self.rng = np.random.default_rng(self.seed)
@@ -116,6 +117,14 @@ class GridTwin:
             case "weather" if cmd.get("value") in WEATHER:
                 self.set_weather(cmd["value"], cmd.get("hours"))
 
+    def _overloads(self, alive: np.ndarray) -> np.ndarray:
+        return np.abs(dc_power_flow(self.grid, alive, self.load).flow) > self.grid.rating
+
+    def _safe(self, lines: list[int], over: np.ndarray) -> bool:
+        alive = self.alive.copy()
+        alive[lines] = True
+        return not (self._overloads(alive) & ~over).any()
+
     # ------------------------------------------------------------------ dynamics
     def step(self, dt: float) -> None:
         self.minute += dt
@@ -128,13 +137,47 @@ class GridTwin:
         self.noise = 0.97 * self.noise + self.rng.normal(0, 0.006, self.grid.n_bus)
         self.load = self.grid.load * self.load_factor * (1 + np.clip(self.noise, -0.15, 0.15))
 
-        # Repairs
-        done = [e for e, t in self.repair_at.items() if t <= self.minute]
-        if done:
-            for e in done:
-                del self.repair_at[e]
-            self.alive[done] = True
-            self._event("restored", f"Crews restored {len(done)} line(s)", lines=done)
+        # Repairs. Operators never close a breaker into an overload: a repaired line returns to
+        # service only if it creates no new overload; otherwise the switching is retried later.
+        # Closing a lone tie into an island re-dispatches the whole island through it, so crews
+        # switch whole corridors: all ready lines, then all ready lines at each bus, then singles.
+        ready = sorted(e for e, t in self.repair_at.items() if t <= self.minute)
+        if ready:
+            over = self._overloads(self.alive)
+            g = self.grid
+            groups = [ready] + [[e for e in ready if b in (g.f[e], g.t[e])]
+                                for b in np.unique(np.r_[g.f[ready], g.t[ready]])]
+            groups += [[e] for e in ready]
+            done: list[int] = []
+            progress = True
+            while progress:
+                progress = False
+                for grp in groups:
+                    new = [e for e in grp if e not in done]
+                    if new and self._safe(done + new, over):
+                        done += new
+                        progress = True
+            for e in ready:
+                if e in done:
+                    del self.repair_at[e]
+                else:
+                    self.repair_at[e] = self.minute + 10
+            if done:
+                self.alive[done] = True
+                self._event("restored", f"Crews restored {len(done)} line(s)", lines=done)
+            blocked = len(done) < len(ready)
+            self.blocked_since = (self.blocked_since or self.minute) if blocked else None
+
+        # A fragmented grid that stays blocked for two hours gets a coordinated system
+        # restoration: remaining repairs are expedited and everything is re-energised at once.
+        if self.blocked_since is not None and self.minute - self.blocked_since >= 120:
+            out = sorted(self.repair_at)
+            if self._safe(out, self._overloads(self.alive)):
+                self.alive[out] = True
+                self.repair_at.clear()
+                self.blocked_since = None
+                self._event("restored", f"System restoration: {len(out)} line(s) re-energised",
+                            lines=out)
 
         # Random faults (Poisson); storms multiply the rate
         rate = settings.fault_rate_per_hour * WEATHER[self.weather][1] * dt / 60
