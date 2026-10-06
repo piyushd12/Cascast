@@ -13,7 +13,7 @@ COPY artifacts ./artifacts
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
-RUN useradd --system --no-create-home app
+RUN useradd --system --create-home app
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "cascast.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
