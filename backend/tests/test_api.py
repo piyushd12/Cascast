@@ -61,3 +61,14 @@ def test_rejects_out_of_range_command_lines(client):
     """Unvalidated ids used to crash the simulator process (IndexError in GridTwin.trip)."""
     for bad in ([999], [-1]):
         assert client.post("/api/commands", json={"cmd": "trip", "lines": bad}).status_code == 422
+
+
+def test_rejects_negative_limits(client):
+    assert client.get("/api/incidents?limit=-1").status_code == 422
+    assert client.get("/api/timeline?limit=0").status_code == 422
+
+
+def test_no_wildcard_cors(client):
+    r = client.options("/api/commands", headers={"Origin": "https://evil.example",
+                                                 "Access-Control-Request-Method": "POST"})
+    assert "access-control-allow-origin" not in r.headers

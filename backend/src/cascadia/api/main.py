@@ -15,8 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import orjson
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -117,8 +116,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Cascadia API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
-                   allow_headers=["*"])
+# No CORS: nginx (prod) and Vite's proxy (dev) serve UI and API from one origin, so other
+# sites can't drive commands or the paid Copilot from a visitor's browser.
 
 
 # --------------------------------------------------------------------------- REST
@@ -162,16 +161,16 @@ async def line(line: int):
 
 
 @app.get("/api/incidents")
-async def incidents(limit: int = 50, kind: str | None = None):
+async def incidents(limit: int = Query(50, ge=1, le=500), kind: str | None = None):
     if hub.store:
-        return await hub.store.incidents(min(limit, 500), kind)
+        return await hub.store.incidents(limit, kind)
     evs = [e for e in hub.live.events if e["kind"] in ("cascade", "fault")]
     return list(reversed(evs))[:limit]
 
 
 @app.get("/api/timeline")
-async def timeline(limit: int = 720):
-    return await hub.store.timeline(min(limit, 5000)) if hub.store else []
+async def timeline(limit: int = Query(720, ge=1, le=5000)):
+    return await hub.store.timeline(limit) if hub.store else []
 
 
 @app.get("/api/model")
