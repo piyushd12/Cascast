@@ -11,7 +11,7 @@ function mix(a: string, b: string, t: number) {
 export function loadingColor(l: number) {
   if (l >= 1) return '#e5484d'
   if (l >= 0.85) return mix('#f5a524', '#ec835a', (l - 0.85) / 0.15)
-  if (l >= 0.6) return mix('#3b6ea8', '#f5a524', (l - 0.6) / 0.25)
+  if (l >= 0.6) return mix('#c08a1e', '#f5a524', (l - 0.6) / 0.25) // RGB blue→amber is mud-grey
   return mix('#2b4766', '#3b6ea8', l / 0.6)
 }
 

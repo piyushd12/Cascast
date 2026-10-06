@@ -84,7 +84,7 @@ export function GridMap(p: Props) {
   const h = hover !== null ? grid.branches[hover.line] : null
 
   return (
-    <div className={`relative ${p.className ?? ''}`}>
+    <div className={`relative min-h-0 overflow-hidden ${p.className ?? ''}`}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="h-full w-full cursor-grab select-none active:cursor-grabbing"
         role="img" aria-label={`${grid.name} network map`}>
         <g ref={gRef}>

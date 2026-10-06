@@ -56,14 +56,14 @@ export default function LivePage({ grid }: { grid: Grid }) {
           sub={acc && acc.checked ? `probability error · ${acc.checked} Monte Carlo checks` : `vs ${acc?.mc_runs ?? 40}-run Monte Carlo`} />
       </div>
 
-      <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid min-h-0 gap-4 xl:h-[max(560px,calc(100vh-232px))] xl:grid-cols-[minmax(0,1fr)_380px]">
         <Panel title="Network"
           right={<Segmented value={mode} onChange={setMode}
             options={[{ value: 'loading', label: 'Line loading' }, { value: 'risk', label: 'N-1 vulnerability' }]} />}>
           <GridMap grid={grid} mode={mode} loading={state.loading} alive={state.alive}
             risk={risk?.vulnerability} shedBuses={shedBuses}
             selected={sel !== null ? [sel] : []} onLineClick={(l) => setSel(l === sel ? null : l)}
-            className="h-[52vh] min-h-[380px]" />
+            className="min-h-[380px] flex-1" />
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2.5">
             <MapLegend mode={mode} />
             {sel !== null ? (
@@ -108,7 +108,7 @@ export default function LivePage({ grid }: { grid: Grid }) {
           </Panel>
 
           <Panel title="Event log" className="min-h-[200px] flex-1">
-            <ul className="max-h-[260px] overflow-y-auto text-sm">
+            <ul className="max-h-[260px] min-h-0 flex-1 overflow-y-auto text-sm xl:max-h-none">
               {events.length === 0 && <li className="px-4 py-6 text-center text-muted">No events yet</li>}
               {events.map((e) => (
                 <li key={`${e.id}-${e.minute}`} className="border-b border-line/60 px-4 py-2">
