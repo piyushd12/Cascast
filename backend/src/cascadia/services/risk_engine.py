@@ -1,8 +1,9 @@
 """Risk engine: consumes grid states, screens every N-1 contingency with the GNN in one
 batch, and publishes a risk assessment. Scales horizontally through a Redis consumer group.
 
-Every `verify_every` ticks it replays a few contingencies through Monte Carlo physics and
-tracks how closely the GNN's probabilities match in production ("live accuracy").
+Every `verify_every` processed ticks a replica replays a few contingencies through Monte Carlo
+physics. The audit totals live in a Redis hash shared by all replicas, so the "live accuracy"
+on the dashboard is one figure no matter which replica published the latest assessment.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import asyncio
 import logging
 import os
 import socket
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 
 import numpy as np
 from redis.exceptions import ResponseError
@@ -30,6 +31,7 @@ TOP_K = 15
 
 
 MC_RUNS = 40
+AUDIT_KEY = "cascadia:audit"
 
 
 @dataclass
@@ -40,13 +42,17 @@ class LiveAccuracy:
     prob_abs_err: float = 0.0
     prob_n: int = 0
     shed_abs_err: float = 0.0
-    hits: int = 0  # most likely failure (by MC) also ranked first by the GNN
+
+    @classmethod
+    def from_hash(cls, h: dict) -> LiveAccuracy:
+        num = {f.name: int if f.type == "int" else float for f in fields(cls)}
+        h = {k.decode(): v for k, v in h.items()}
+        return cls(**{k: num[k](float(h[k])) for k in num if k in h})  # ignore retired fields
 
     def as_dict(self) -> dict:
         return {"checked": self.checked, "mc_runs": MC_RUNS,
                 "prob_mae": round(self.prob_abs_err / max(self.prob_n, 1), 4),
-                "shed_mae_pct": round(100 * self.shed_abs_err / max(self.checked, 1), 3),
-                "top1_agreement": round(self.hits / max(self.checked, 1), 3)}
+                "shed_mae_pct": round(100 * self.shed_abs_err / max(self.checked, 1), 3)}
 
 
 def state_arrays(s: dict) -> tuple[np.ndarray, np.ndarray, FlowResult]:
@@ -82,9 +88,10 @@ def assess(grid: Grid, sc: Screening) -> dict:
     }
 
 
-def verify(grid: Grid, load, alive, pre, sc: Screening, acc: LiveAccuracy,
-           rng: np.random.Generator, k: int = 2) -> None:
+def verify(grid: Grid, load, alive, pre, sc: Screening, rng: np.random.Generator,
+           k: int = 2) -> LiveAccuracy:
     """Check the riskiest and one random contingency against Monte Carlo physics."""
+    acc = LiveAccuracy()
     idx = np.unique(np.r_[np.argsort(-sc.shed)[:k], rng.choice(sc.contingency.size, 1)])
     for i in idx:
         mc = monte_carlo(grid, load, [sc.contingency[i]], alive, pre, MC_RUNS, rng)
@@ -92,11 +99,8 @@ def verify(grid: Grid, load, alive, pre, sc: Screening, acc: LiveAccuracy,
         acc.prob_abs_err += float(np.abs(sc.prob[i] - mc.fail_prob)[active].sum())
         acc.prob_n += int(active.sum())
         acc.shed_abs_err += abs(float(sc.shed[i]) - mc.expected_shed)
-        if mc.fail_prob.max() > 0:
-            acc.hits += int(np.argmax(sc.prob[i]) == np.argmax(mc.fail_prob))
-        else:
-            acc.hits += int(sc.prob[i].max() < FAIL_P)
         acc.checked += 1
+    return acc
 
 
 async def run() -> None:
@@ -108,7 +112,7 @@ async def run() -> None:
     except ResponseError as e:  # group already exists
         if "BUSYGROUP" not in str(e):
             raise
-    acc, rng = LiveAccuracy(), np.random.default_rng(0)
+    rng, n = np.random.default_rng(), 0
     log.info("risk engine %s ready", name)
     while True:
         rows = await r.xreadgroup(settings.risk_group, name, {STATE_STREAM: ">"},
@@ -118,18 +122,24 @@ async def run() -> None:
         msgs = rows[0][1]
         await r.xack(STATE_STREAM, settings.risk_group, *[mid for mid, _ in msgs])
         state = bus.decode(msgs[-1][1])  # if we fell behind, only the newest state matters
-        out = await asyncio.to_thread(process, grid, model, state, acc, rng)
+        n += 1  # count locally: replicas see interleaved ticks, so tick % k would starve one
+        out, audit = await asyncio.to_thread(process, grid, model, state, rng,
+                                             n % settings.verify_every == 0)
+        if audit:
+            async with r.pipeline(transaction=False) as pipe:
+                for k, v in asdict(audit).items():
+                    pipe.hincrbyfloat(AUDIT_KEY, k, v)
+                await pipe.execute()
+        out["live_accuracy"] = LiveAccuracy.from_hash(await r.hgetall(AUDIT_KEY)).as_dict()
         await bus.publish(r, RISK_STREAM, out)
 
 
-def process(grid, model: RiskModel, state, acc, rng) -> dict:
+def process(grid, model: RiskModel, state, rng, audit: bool) -> tuple[dict, LiveAccuracy | None]:
     load, alive, pre = state_arrays(state)
     sc = model.screen(load, alive, pre)
     out = assess(grid, sc)
-    if state["tick"] % settings.verify_every == 0:
-        verify(grid, load, alive, pre, sc, acc, rng)
-    out.update(tick=state["tick"], minute=state["minute"], live_accuracy=acc.as_dict())
-    return out
+    out.update(tick=state["tick"], minute=state["minute"])
+    return out, verify(grid, load, alive, pre, sc, rng) if audit else None
 
 
 def main() -> None:

@@ -17,7 +17,7 @@ export interface Risk {
   tick: number; minute: number; status: 'secure' | 'alert' | 'emergency'
   worst_shed_pct: number; n_critical: number; n_screened: number; latency_ms: number
   top: Contingency[]; vulnerability: number[]
-  live_accuracy?: { checked: number; mc_runs: number; prob_mae: number; shed_mae_pct: number; top1_agreement: number }
+  live_accuracy?: { checked: number; mc_runs: number; prob_mae: number; shed_mae_pct: number }
 }
 
 export interface GridEvent {
