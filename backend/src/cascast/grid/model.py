@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cascadia.config import settings
+from cascast.config import settings
 
 
 @dataclass(frozen=True)

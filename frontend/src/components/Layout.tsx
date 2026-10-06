@@ -25,7 +25,7 @@ export function Layout({ children, onCopilot }: { children: ReactNode; onCopilot
         <div className="flex items-center gap-2">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#1b2633]"><Zap size={18} className="text-[#f5a524]" fill="#f5a524" /></div>
           <div className="leading-tight">
-            <div className="font-semibold tracking-tight">Cascadia</div>
+            <div className="font-semibold tracking-tight">Cascast</div>
             <div className="text-[11px] text-muted">IEEE 118-bus digital twin</div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import numpy as np
 
-from cascadia.grid.cascade import settle
-from cascadia.grid.dcpf import dc_power_flow, islands, n1_flows
+from cascast.grid.cascade import settle
+from cascast.grid.dcpf import dc_power_flow, islands, n1_flows
 
 
 def test_kirchhoff_current_law(grid):

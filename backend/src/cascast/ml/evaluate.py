@@ -7,7 +7,7 @@ Two kinds of ground truth:
   * Monte Carlo reference probabilities on a subset (256 cascades per scenario), used to ask
     "how many Monte Carlo runs would match the GNN's accuracy, and how long would they take?"
 
-Usage:  uv run --group train python -m cascadia.ml.evaluate
+Usage:  uv run --group train python -m cascast.ml.evaluate
 """
 
 from __future__ import annotations
@@ -34,12 +34,12 @@ from sklearn.metrics import (  # noqa: E402
     roc_auc_score,
 )
 
-from cascadia.config import BACKEND_DIR, settings  # noqa: E402
-from cascadia.grid.cascade import settle, simulate_cascade  # noqa: E402
-from cascadia.grid.dcpf import dc_power_flow, n1_flows  # noqa: E402
-from cascadia.grid.model import load_grid  # noqa: E402
-from cascadia.ml.features import build_features  # noqa: E402
-from cascadia.ml.train import CKPT, build_model, load_dataset, predict, split  # noqa: E402
+from cascast.config import BACKEND_DIR, settings  # noqa: E402
+from cascast.grid.cascade import settle, simulate_cascade  # noqa: E402
+from cascast.grid.dcpf import dc_power_flow, n1_flows  # noqa: E402
+from cascast.grid.model import load_grid  # noqa: E402
+from cascast.ml.features import build_features  # noqa: E402
+from cascast.ml.train import CKPT, build_model, load_dataset, predict, split  # noqa: E402
 
 FIG_DIR = BACKEND_DIR.parent / "docs" / "figures"
 MC_SCENARIOS = 400

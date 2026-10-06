@@ -25,8 +25,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from cascadia.grid.dcpf import FlowResult, dc_power_flow
-from cascadia.grid.model import Grid
+from cascast.grid.dcpf import FlowResult, dc_power_flow
+from cascast.grid.model import Grid
 
 MAX_STAGES = 30
 

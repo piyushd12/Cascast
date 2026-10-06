@@ -3,8 +3,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from cascadia.api.main import app
-from cascadia.config import settings
+from cascast.api.main import app
+from cascast.config import settings
 
 
 @pytest.fixture(scope="module")

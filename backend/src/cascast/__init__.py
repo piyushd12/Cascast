@@ -1,4 +1,4 @@
-"""Cascadia: real-time cascading-failure risk for power grids."""
+"""Cascast: real-time cascading-failure risk for power grids."""
 
 import os
 

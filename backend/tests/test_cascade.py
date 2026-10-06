@@ -1,7 +1,7 @@
 import numpy as np
 
-from cascadia.grid.cascade import Protection, monte_carlo, settle, simulate_cascade
-from cascadia.ml.datagen import scenario
+from cascast.grid.cascade import Protection, monte_carlo, settle, simulate_cascade
+from cascast.ml.datagen import scenario
 
 
 def _stressed_state(grid, rng, scale=1.25):

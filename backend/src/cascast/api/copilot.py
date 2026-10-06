@@ -10,13 +10,13 @@ from collections.abc import AsyncIterator
 
 import anthropic
 
-from cascadia.api import ops
-from cascadia.config import settings
-from cascadia.grid.model import load_grid
+from cascast.api import ops
+from cascast.config import settings
+from cascast.grid.model import load_grid
 
 MAX_TURNS = 8
 
-SYSTEM = """You are the Operator Copilot for Cascadia, a real-time digital twin of the IEEE \
+SYSTEM = """You are the Operator Copilot for Cascast, a real-time digital twin of the IEEE \
 118-bus transmission grid (118 buses, 186 branches, DC power-flow physics).
 
 A graph neural network screens every single-branch (N-1) contingency each second and \

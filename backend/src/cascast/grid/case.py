@@ -1,6 +1,6 @@
 """Export the IEEE 118-bus test case to artifacts/grid.json.
 
-Run once (needs the `train` dependency group):  uv run python -m cascadia.grid.case
+Run once (needs the `train` dependency group):  uv run python -m cascast.grid.case
 
 * Topology, reactances, loads and generator capacities come from pandapower's case118.
 * Our DC solver is cross-checked against pandapower's `rundcpp` on the original dispatch.
@@ -19,9 +19,9 @@ import numpy as np
 import pandapower as pp
 import pandapower.networks as pn
 
-from cascadia.config import settings
-from cascadia.grid.dcpf import dc_power_flow, islands, solve_flows
-from cascadia.grid.model import Grid
+from cascast.config import settings
+from cascast.grid.dcpf import dc_power_flow, islands, solve_flows
+from cascast.grid.model import Grid
 
 MARGIN = 1.05
 HEADROOM = 1.3

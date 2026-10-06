@@ -1,6 +1,6 @@
 """Train CascadeGNN on simulator-generated scenarios, then calibrate it.
 
-Usage:  uv run --group train python -m cascadia.ml.train --epochs 40
+Usage:  uv run --group train python -m cascast.ml.train --epochs 40
 """
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ import torch
 import torch.nn.functional as F
 from sklearn.metrics import average_precision_score
 
-from cascadia.config import settings
-from cascadia.grid.model import Grid, load_grid
-from cascadia.ml.features import EDGE_FEATURES, NODE_FEATURES, build_features
-from cascadia.ml.model import CascadeGNN
+from cascast.config import settings
+from cascast.grid.model import Grid, load_grid
+from cascast.ml.features import EDGE_FEATURES, NODE_FEATURES, build_features
+from cascast.ml.model import CascadeGNN
 
 CKPT = settings.data_dir / "model.pt"
 

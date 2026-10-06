@@ -1,6 +1,6 @@
 """Export the calibrated model to ONNX and verify parity with PyTorch.
 
-Usage:  uv run --group train python -m cascadia.ml.export
+Usage:  uv run --group train python -m cascast.ml.export
 """
 
 from __future__ import annotations
@@ -11,11 +11,11 @@ import numpy as np
 import onnxruntime as ort
 import torch
 
-from cascadia.config import settings
-from cascadia.grid.model import load_grid
-from cascadia.ml.features import EDGE_FEATURES, NODE_FEATURES
-from cascadia.ml.model import Exported
-from cascadia.ml.train import CKPT, build_model
+from cascast.config import settings
+from cascast.grid.model import load_grid
+from cascast.ml.features import EDGE_FEATURES, NODE_FEATURES
+from cascast.ml.model import Exported
+from cascast.ml.train import CKPT, build_model
 
 
 def main() -> None:

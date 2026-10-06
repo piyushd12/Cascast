@@ -13,7 +13,7 @@ import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 
-from cascadia.grid.model import Grid
+from cascast.grid.model import Grid
 
 
 @dataclass

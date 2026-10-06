@@ -1,8 +1,8 @@
 import numpy as np
 
-from cascadia.grid.dcpf import dc_power_flow
-from cascadia.ml.features import EDGE_FEATURES, NODE_FEATURES, build_features
-from cascadia.ml.inference import get_model
+from cascast.grid.dcpf import dc_power_flow
+from cascast.ml.features import EDGE_FEATURES, NODE_FEATURES, build_features
+from cascast.ml.inference import get_model
 
 
 def test_feature_shapes(grid):

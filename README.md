@@ -1,12 +1,12 @@
 <div align="center">
 
-# ⚡ Cascadia
+# ⚡ Cascast
 
-### Real-time cascading-blackout risk for power grids with a physics-informed graph neural network
+### **Casc**ade fore**cast**ing: real-time blackout risk for power grids with a physics-informed graph neural network
 
 A **live digital twin of the IEEE 118-bus transmission grid**. Its protection relays behave stochastically, so the same fault can fizzle out or black out a region. A **graph neural network** estimates the *probability* that each line fails in the resulting cascade for every possible single failure. It does this **112× faster than a 100-run Monte Carlo study**, with an expected calibration error below 0.001. A horizontally scaled streaming backend runs it every second, and an **AI operator copilot** explains the risks.
 
-[![CI](https://github.com/piyushd12/cascadia/actions/workflows/ci.yml/badge.svg)](https://github.com/piyushd12/cascadia/actions/workflows/ci.yml)
+[![CI](https://github.com/piyushd12/cascast/actions/workflows/ci.yml/badge.svg)](https://github.com/piyushd12/cascast/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.11-EE4C2C?logo=pytorch&logoColor=white)
 ![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-serving-005CED?logo=onnx&logoColor=white)
@@ -15,7 +15,7 @@ A **live digital twin of the IEEE 118-bus transmission grid**. Its protection re
 ![Redis](https://img.shields.io/badge/Redis-Streams-DC382D?logo=redis&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-<img src="docs/screenshots/live.png" alt="Cascadia live dashboard: the 118-bus grid coloured by line loading, risk KPIs, the riskiest contingencies, operator controls and the event log" width="100%">
+<img src="docs/screenshots/live.png" alt="Cascast live dashboard: the 118-bus grid coloured by line loading, risk KPIs, the riskiest contingencies, operator controls and the event log" width="100%">
 
 </div>
 
@@ -24,7 +24,7 @@ A **live digital twin of the IEEE 118-bus transmission grid**. Its protection re
 ## Contents
 
 - [Why this matters](#why-this-matters)
-- [What Cascadia does](#what-cascadia-does)
+- [What Cascast does](#what-cascast-does)
 - [Results](#results)
 - [System architecture](#system-architecture)
 - [The machine-learning pipeline](#the-machine-learning-pipeline)
@@ -52,9 +52,9 @@ Cascades are **random**. Relays tolerate short overloads by different amounts, a
 
 Physics can only answer that by **Monte Carlo**: simulate the cascade many times per contingency, for all 186 single-line contingencies, continuously as demand and weather change. That costs tens of seconds per screen on a laptop.
 
-**Cascadia learns it.** A graph neural network trained on 640,000 simulated cascades predicts every line's failure probability, and the expected load lost, for all 186 contingencies in one batched inference.
+**Cascast learns it.** A graph neural network trained on 640,000 simulated cascades predicts every line's failure probability, and the expected load lost, for all 186 contingencies in one batched inference.
 
-## What Cascadia does
+## What Cascast does
 
 - 🧮 **A physics engine:** DC power flow with islanding and load shedding, validated against [pandapower](https://www.pandapower.org/) to within 10⁻¹¹ MW. It drives a quasi-static cascade simulator with **stochastic protection** (after the Chen–Thorp–Dobson hidden-failure model). Exact LODF/PTDF sensitivities compute every first-stage outage flow in about 1 ms.
 - 🧠 **CascadeGNN:** an edge-centric message-passing network with a global context vector. For every line it predicts *P(this line fails in the cascade)*, and for the whole grid it predicts *the expected fraction of demand lost*. It is trained with a proper scoring rule on multi-draw cascade frequencies, Platt-calibrated, exported to ONNX and served on CPU.
@@ -85,7 +85,7 @@ All numbers are measured on held-out test data never seen during training, and a
   </picture>
 </p>
 
-**How to read this.** The orange curve is Monte Carlo physics with 1–128 runs per contingency: more runs mean less error but more time. The GNN (blue star) costs about as much as **one** physics run yet is as accurate as **eight**. When you need near-exact probabilities, physics still wins: Cascadia uses it in the What-If Lab and the live audit. For continuous screening, every second, the GNN is the only option that fits the budget.
+**How to read this.** The orange curve is Monte Carlo physics with 1–128 runs per contingency: more runs mean less error but more time. The GNN (blue star) costs about as much as **one** physics run yet is as accurate as **eight**. When you need near-exact probabilities, physics still wins: Cascast uses it in the What-If Lab and the live audit. For continuous screening, every second, the GNN is the only option that fits the budget.
 
 <table>
 <tr>
@@ -236,7 +236,7 @@ flowchart TB
 | Live monitor | What-If Lab |
 |---|---|
 | <img src="docs/screenshots/live.png" alt="Live monitor"> | <img src="docs/screenshots/lab.png" alt="What-If Lab comparing GNN and Monte Carlo"> |
-| Line loadings and an N-1 vulnerability heat-map. KPIs, the riskiest contingencies, the live Monte Carlo audit, operator controls (weather, faults, restore) and the event log. | Pick lines and scale demand. GNN probabilities and a 100-run Monte Carlo appear side by side: here 29.9% vs 32.0% expected demand lost, in **3.5 ms vs 1.1 s**. |
+| Line loadings and an N-1 vulnerability heat-map. KPIs, the riskiest contingencies, the live Monte Carlo audit, operator controls (weather, faults, restore) and the event log. | Pick lines and scale demand. GNN probabilities and a 100-run Monte Carlo appear side by side: here 13.1% vs 14.2% expected demand lost, in **5.2 ms vs 1.1 s**. |
 
 | Cascade replay | Model card |
 |---|---|
@@ -255,15 +255,15 @@ flowchart TB
 ### Run everything with Docker (recommended)
 
 ```bash
-git clone https://github.com/piyushd12/cascadia.git
-cd cascadia
+git clone https://github.com/piyushd12/cascast.git
+cd cascast
 cp .env.example .env            # optional: add ANTHROPIC_API_KEY to enable the Copilot
 docker compose up --build
 ```
 
 Open **http://localhost:8080**. The trained model ships in `backend/artifacts/`, so no GPU or training is needed.
 
-> The stack binds to `127.0.0.1` only, and the API answers only to `localhost` Host headers (DNS-rebinding protection). It has no authentication, so to demo it on a LAN you trust, change the `web` port to `"8080:80"` in `docker-compose.yml` and add your IP to `CASCADIA_ALLOWED_HOSTS` in `.env`.
+> The stack binds to `127.0.0.1` only, and the API answers only to `localhost` Host headers (DNS-rebinding protection). It has no authentication, so to demo it on a LAN you trust, change the `web` port to `"8080:80"` in `docker-compose.yml` and add your IP to `CASCAST_ALLOWED_HOSTS` in `.env`.
 
 ### Local development
 
@@ -308,9 +308,9 @@ Interactive OpenAPI docs are served at `/docs` on the API (port 8000).
 ## Project structure
 
 ```
-cascadia/
+cascast/
 ├── backend/
-│   ├── src/cascadia/
+│   ├── src/cascast/
 │   │   ├── grid/          # IEEE-118 export, DC power flow + LODF, stochastic cascade simulator
 │   │   ├── ml/            # scenario generation, features, CascadeGNN, training, evaluation, ONNX
 │   │   ├── services/      # Redis bus, digital-twin simulator, risk engine
@@ -329,7 +329,7 @@ cascadia/
 <details>
 <summary><b>Why model protection stochastically?</b></summary>
 
-With deterministic protection (every line trips at exactly 100% loading) a cascade is a pure function of the operating point, and one physics run gives the exact answer. Real protection is not like that. Relays and conductors tolerate short overloads by varying amounts, and relays next to a fault can misoperate. Cascadia draws each line's trip threshold as τ = 1 + 0.06·|z|, and gives every relay adjacent to a newly tripped line a 2% chance of a hidden failure. Risk then becomes a probability, and the problem the GNN solves changes from "replace one simulation" to "replace a Monte Carlo study". That is where a learned surrogate pays off.
+With deterministic protection (every line trips at exactly 100% loading) a cascade is a pure function of the operating point, and one physics run gives the exact answer. Real protection is not like that. Relays and conductors tolerate short overloads by varying amounts, and relays next to a fault can misoperate. Cascast draws each line's trip threshold as τ = 1 + 0.06·|z|, and gives every relay adjacent to a newly tripped line a 2% chance of a hidden failure. Risk then becomes a probability, and the problem the GNN solves changes from "replace one simulation" to "replace a Monte Carlo study". That is where a learned surrogate pays off.
 </details>
 
 <details>
@@ -341,7 +341,7 @@ The DC approximation (lossless lines, flat voltages, small angle differences) is
 <details>
 <summary><b>Where do the line ratings come from?</b></summary>
 
-The IEEE 118-bus case ships without realistic thermal limits. Cascadia sets each rating to the larger of 1.05 × the worst flow that line sees across all single-line outages, and 1.3 × its base-case flow. The base grid is therefore **N-1 secure by construction**, which is how real grids are planned, and it stays intact up to 1.25× nominal demand. Cascades appear only under stress (peaks, heatwaves) or multiple outages, as they do in reality. Tests check both properties.
+The IEEE 118-bus case ships without realistic thermal limits. Cascast sets each rating to the larger of 1.05 × the worst flow that line sees across all single-line outages, and 1.3 × its base-case flow. The base grid is therefore **N-1 secure by construction**, which is how real grids are planned, and it stays intact up to 1.25× nominal demand. Cascades appear only under stress (peaks, heatwaves) or multiple outages, as they do in reality. Tests check both properties.
 </details>
 
 <details>

@@ -1,14 +1,14 @@
-name: cascadia
+name: cascast
 
 x-backend: &backend
   build: ./backend
-  image: cascadia-backend
+  image: cascast-backend
   restart: unless-stopped
   environment:
-    CASCADIA_REDIS_URL: redis://redis:6379/0
-    CASCADIA_DATABASE_URL: postgresql+asyncpg://cascadia:cascadia@postgres:5432/cascadia
+    CASCAST_REDIS_URL: redis://redis:6379/0
+    CASCAST_DATABASE_URL: postgresql+asyncpg://cascast:cascast@postgres:5432/cascast
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    CASCADIA_ALLOWED_HOSTS: '${CASCADIA_ALLOWED_HOSTS:-["localhost","127.0.0.1"]}'
+    CASCAST_ALLOWED_HOSTS: '${CASCAST_ALLOWED_HOSTS:-["localhost","127.0.0.1"]}'
   depends_on:
     redis: { condition: service_healthy }
 
@@ -21,18 +21,18 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    environment: { POSTGRES_USER: cascadia, POSTGRES_PASSWORD: cascadia, POSTGRES_DB: cascadia }
+    environment: { POSTGRES_USER: cascast, POSTGRES_PASSWORD: cascast, POSTGRES_DB: cascast }
     volumes: [pgdata:/var/lib/postgresql/data]
     ports: ["127.0.0.1:5432:5432"]   # localhost only: for `make infra` local development
-    healthcheck: { test: ["CMD-SHELL", "pg_isready -U cascadia"], interval: 3s, retries: 20 }
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U cascast"], interval: 3s, retries: 20 }
 
   simulator:
     <<: *backend
-    command: ["cascadia-simulator"]
+    command: ["cascast-simulator"]
 
   risk-engine:
     <<: *backend
-    command: ["cascadia-risk-engine"]
+    command: ["cascast-risk-engine"]
     deploy: { replicas: 2 }   # consumer group: each tick is screened by exactly one replica
 
   api:

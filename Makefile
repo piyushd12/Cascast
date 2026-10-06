@@ -1,4 +1,4 @@
-# Cascadia — common tasks. Run `make help` for the list.
+# Cascast — common tasks. Run `make help` for the list.
 UV  := cd backend && uv run
 BUN := cd frontend && bun
 
@@ -12,19 +12,19 @@ setup:         ## Install backend (incl. training deps) and frontend dependencie
 	$(BUN) install
 
 grid:          ## Export the IEEE 118-bus case + layout to backend/artifacts/grid.json
-	$(UV) python -m cascadia.grid.case
+	$(UV) python -m cascast.grid.case
 
 data:          ## Simulate 100k labelled cascade scenarios
-	$(UV) python -m cascadia.ml.datagen --n 100000
+	$(UV) python -m cascast.ml.datagen --n 100000
 
 train:         ## Train CascadeGNN (uses CUDA when available)
-	$(UV) python -m cascadia.ml.train --epochs 40
+	$(UV) python -m cascast.ml.train --epochs 40
 
 export:        ## Export the trained model to ONNX and verify parity
-	$(UV) python -m cascadia.ml.export
+	$(UV) python -m cascast.ml.export
 
 evaluate:      ## Test-set metrics, benchmark and README figures
-	$(UV) python -m cascadia.ml.evaluate
+	$(UV) python -m cascast.ml.evaluate
 
 model: grid data train export evaluate  ## Full ML pipeline, end to end
 
@@ -39,13 +39,13 @@ infra:         ## Start Redis and Postgres only (for local development)
 	docker compose up -d redis postgres
 
 api:           ## Run the API with auto-reload
-	$(UV) uvicorn cascadia.api.main:app --reload --port 8000
+	$(UV) uvicorn cascast.api.main:app --reload --port 8000
 
 simulator:     ## Run the grid digital twin
-	$(UV) cascadia-simulator
+	$(UV) cascast-simulator
 
 risk:          ## Run a risk engine worker
-	$(UV) cascadia-risk-engine
+	$(UV) cascast-risk-engine
 
 web:           ## Run the frontend dev server (http://localhost:5173)
 	$(BUN) run dev

@@ -16,13 +16,13 @@ from itertools import count
 
 import numpy as np
 
-from cascadia.config import COMMAND_STREAM, EVENT_STREAM, STATE_STREAM, settings
-from cascadia.grid.cascade import settle, simulate_cascade
-from cascadia.grid.dcpf import FlowResult, dc_power_flow
-from cascadia.grid.model import Grid, load_grid
-from cascadia.services import bus
+from cascast.config import COMMAND_STREAM, EVENT_STREAM, STATE_STREAM, settings
+from cascast.grid.cascade import settle, simulate_cascade
+from cascast.grid.dcpf import FlowResult, dc_power_flow
+from cascast.grid.model import Grid, load_grid
+from cascast.services import bus
 
-log = logging.getLogger("cascadia.simulator")
+log = logging.getLogger("cascast.simulator")
 
 WEATHER = {  # demand multiplier, fault-rate multiplier, (min, max) duration in hours
     "clear": (1.0, 1.0, (6, 14)),

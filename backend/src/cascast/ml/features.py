@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cascadia.grid.model import Grid
+from cascast.grid.model import Grid
 
 NODE_FEATURES = [
     "served_pu", "demand_pu", "gen_capacity_pu", "net_injection_pu", "served_after_trip_pu"

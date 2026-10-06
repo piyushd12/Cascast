@@ -17,21 +17,21 @@ from dataclasses import asdict, dataclass, fields
 import numpy as np
 from redis.exceptions import ResponseError
 
-from cascadia.config import RISK_STREAM, STATE_STREAM, settings
-from cascadia.grid.cascade import monte_carlo
-from cascadia.grid.dcpf import FlowResult
-from cascadia.grid.model import Grid, load_grid
-from cascadia.ml.inference import RiskModel, Screening, get_model
-from cascadia.services import bus
+from cascast.config import RISK_STREAM, STATE_STREAM, settings
+from cascast.grid.cascade import monte_carlo
+from cascast.grid.dcpf import FlowResult
+from cascast.grid.model import Grid, load_grid
+from cascast.ml.inference import RiskModel, Screening, get_model
+from cascast.services import bus
 
-log = logging.getLogger("cascadia.risk")
+log = logging.getLogger("cascast.risk")
 FAIL_P = 0.5
 CRITICAL_SHED = 0.005  # contingencies shedding > 0.5% of demand are "critical"
 TOP_K = 15
 
 
 MC_RUNS = 40
-AUDIT_KEY = "cascadia:audit"
+AUDIT_KEY = "cascast:audit"
 
 
 @dataclass

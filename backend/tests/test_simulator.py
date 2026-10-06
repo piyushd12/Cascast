@@ -1,4 +1,4 @@
-from cascadia.services.simulator import GridTwin, daily_profile
+from cascast.services.simulator import GridTwin, daily_profile
 
 
 def test_daily_profile_peaks_in_evening():

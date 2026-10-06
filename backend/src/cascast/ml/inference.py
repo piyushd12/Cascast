@@ -9,10 +9,10 @@ from functools import cache
 import numpy as np
 import onnxruntime as ort
 
-from cascadia.config import settings
-from cascadia.grid.dcpf import FlowResult, dc_power_flow, n1_flows
-from cascadia.grid.model import Grid, load_grid
-from cascadia.ml.features import build_features
+from cascast.config import settings
+from cascast.grid.dcpf import FlowResult, dc_power_flow, n1_flows
+from cascast.grid.model import Grid, load_grid
+from cascast.ml.features import build_features
 
 
 @dataclass

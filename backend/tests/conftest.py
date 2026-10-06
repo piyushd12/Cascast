@@ -1,8 +1,8 @@
-import cascadia  # noqa: F401, I001  (first: pins BLAS threads before numpy loads)
+import cascast  # noqa: F401, I001  (first: pins BLAS threads before numpy loads)
 import numpy as np
 import pytest
 
-from cascadia.grid.model import load_grid
+from cascast.grid.model import load_grid
 
 
 @pytest.fixture(scope="session")

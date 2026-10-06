@@ -8,7 +8,7 @@ import numpy as np
 import orjson
 from redis.asyncio import Redis
 
-from cascadia.config import settings
+from cascast.config import settings
 
 MAXLEN = 2000  # approximate cap per stream; old entries are trimmed
 

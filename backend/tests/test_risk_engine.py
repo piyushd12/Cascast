@@ -2,9 +2,9 @@ from dataclasses import asdict
 
 import numpy as np
 
-from cascadia.grid.dcpf import dc_power_flow
-from cascadia.ml.inference import get_model
-from cascadia.services.risk_engine import LiveAccuracy, process
+from cascast.grid.dcpf import dc_power_flow
+from cascast.ml.inference import get_model
+from cascast.services.risk_engine import LiveAccuracy, process
 
 
 def test_audit_totals_round_trip_through_a_redis_hash():

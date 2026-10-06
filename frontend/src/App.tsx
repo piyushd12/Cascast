@@ -21,7 +21,7 @@ export default function App() {
     <Layout onCopilot={() => setCopilotOpen((o) => !o)}>
       {grid.isError && (
         <div className="panel m-6 p-6 text-ink-2">
-          Can’t reach the Cascadia API. Start the backend (<code className="font-mono">make dev</code> or{' '}
+          Can’t reach the Cascast API. Start the backend (<code className="font-mono">make dev</code> or{' '}
           <code className="font-mono">docker compose up</code>) and reload.
         </div>
       )}

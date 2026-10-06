@@ -11,7 +11,7 @@ empirical failure frequency of every branch and the mean load shed: low-variance
 for the probabilities that physics can only estimate by Monte Carlo. One raw outcome
 (`failed`) is kept for ranking metrics.
 
-Usage:  uv run python -m cascadia.ml.datagen --n 100000
+Usage:  uv run python -m cascast.ml.datagen --n 100000
 """
 
 from __future__ import annotations
@@ -27,10 +27,10 @@ for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
 
 import numpy as np  # noqa: E402
 
-from cascadia.config import settings  # noqa: E402
-from cascadia.grid.cascade import settle, simulate_cascade  # noqa: E402
-from cascadia.grid.dcpf import dc_power_flow  # noqa: E402
-from cascadia.grid.model import load_grid  # noqa: E402
+from cascast.config import settings  # noqa: E402
+from cascast.grid.cascade import settle, simulate_cascade  # noqa: E402
+from cascast.grid.dcpf import dc_power_flow  # noqa: E402
+from cascast.grid.model import load_grid  # noqa: E402
 
 FIELDS = ("load", "served", "flow", "alive", "trip", "flow1", "served1", "failed", "fail_prob",
           "shed")

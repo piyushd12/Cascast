@@ -1,5 +1,5 @@
 [project]
-name = "cascadia"
+name = "cascast"
 version = "1.0.0"
 description = "Real-time cascading-failure forecasting for power grids with graph neural networks"
 license = { text = "MIT" }
@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.scripts]
-cascadia-simulator = "cascadia.services.simulator:main"
-cascadia-risk-engine = "cascadia.services.risk_engine:main"
+cascast-simulator = "cascast.services.simulator:main"
+cascast-risk-engine = "cascast.services.risk_engine:main"
 
 [dependency-groups]
 dev = [
@@ -56,7 +56,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cascadia"]
+packages = ["src/cascast"]
 
 [tool.ruff]
 line-length = 100

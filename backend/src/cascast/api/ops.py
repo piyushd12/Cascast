@@ -12,12 +12,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from cascadia.grid.cascade import monte_carlo, simulate_cascade
-from cascadia.grid.dcpf import FlowResult, dc_power_flow
-from cascadia.grid.model import load_grid
-from cascadia.ml.inference import get_model
-from cascadia.services.bus import r3
-from cascadia.services.risk_engine import FAIL_P, assess
+from cascast.grid.cascade import monte_carlo, simulate_cascade
+from cascast.grid.dcpf import FlowResult, dc_power_flow
+from cascast.grid.model import load_grid
+from cascast.ml.inference import get_model
+from cascast.services.bus import r3
+from cascast.services.risk_engine import FAIL_P, assess
 
 
 def nominal_state() -> dict:

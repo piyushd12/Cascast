@@ -7,14 +7,14 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CASCADIA_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="CASCAST_", env_file=".env", extra="ignore")
 
     artifacts_dir: Path = BACKEND_DIR / "artifacts"
     data_dir: Path = BACKEND_DIR / "data"
     redis_url: str = "redis://localhost:6379/0"
-    database_url: str = "postgresql+asyncpg://cascadia:cascadia@localhost:5432/cascadia"
+    database_url: str = "postgresql+asyncpg://cascast:cascast@localhost:5432/cascast"
     # Host headers the API answers to (blocks DNS-rebinding attacks from other web pages).
-    # For a LAN demo add the machine's IP: CASCADIA_ALLOWED_HOSTS='["localhost","192.168.1.20"]'
+    # For a LAN demo add the machine's IP: CASCAST_ALLOWED_HOSTS='["localhost","192.168.1.20"]'
     allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
 
     # Simulator: each tick advances `sim_minutes_per_tick` simulated minutes,
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Copilot (optional)
     anthropic_api_key: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CASCADIA_ANTHROPIC_API_KEY"),
+        validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CASCAST_ANTHROPIC_API_KEY"),
     )
     copilot_model: str = "claude-opus-5-5"
 

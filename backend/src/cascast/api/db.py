@@ -8,7 +8,7 @@ from sqlalchemy import JSON, BigInteger, DateTime, Float, Integer, String, selec
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from cascadia.config import settings
+from cascast.config import settings
 
 
 class Base(DeclarativeBase):

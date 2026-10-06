@@ -1,4 +1,4 @@
-"""Cascadia API gateway: REST, WebSocket fan-out of the live streams, and the Copilot (SSE).
+"""Cascast API gateway: REST, WebSocket fan-out of the live streams, and the Copilot (SSE).
 
 Redis and Postgres are optional: without them the API still serves the grid, what-if
 analysis (on a nominal operating point) and model metrics.
@@ -21,14 +21,14 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from cascadia.api import copilot, ops
-from cascadia.api.db import Store
-from cascadia.config import COMMAND_STREAM, EVENT_STREAM, RISK_STREAM, STATE_STREAM, settings
-from cascadia.grid.model import load_grid
-from cascadia.ml.inference import get_model
-from cascadia.services import bus
+from cascast.api import copilot, ops
+from cascast.api.db import Store
+from cascast.config import COMMAND_STREAM, EVENT_STREAM, RISK_STREAM, STATE_STREAM, settings
+from cascast.grid.model import load_grid
+from cascast.ml.inference import get_model
+from cascast.services import bus
 
-log = logging.getLogger("cascadia.api")
+log = logging.getLogger("cascast.api")
 
 
 class Hub:
@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         t.cancel()
 
 
-app = FastAPI(title="Cascadia API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Cascast API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 # No CORS: nginx (prod) and Vite's proxy (dev) serve UI and API from one origin, so other
