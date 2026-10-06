@@ -1,6 +1,6 @@
 """Train CascadeGNN on simulator-generated scenarios, then calibrate it.
 
-Usage:  uv run --group train python -m cascadia.ml.train --epochs 30
+Usage:  uv run --group train python -m cascadia.ml.train --epochs 40
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def fit_platt(logits: torch.Tensor, labels: torch.Tensor) -> tuple[float, float]
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=str(settings.data_dir / "scenarios.npz"))
-    ap.add_argument("--epochs", type=int, default=30)
+    ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--bs", type=int, default=256)
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--hidden", type=int, default=32)

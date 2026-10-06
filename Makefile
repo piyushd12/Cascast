@@ -18,7 +18,7 @@ data:          ## Simulate 100k labelled cascade scenarios
 	$(UV) python -m cascadia.ml.datagen --n 100000
 
 train:         ## Train CascadeGNN (uses CUDA when available)
-	$(UV) python -m cascadia.ml.train --epochs 30
+	$(UV) python -m cascadia.ml.train --epochs 40
 
 export:        ## Export the trained model to ONNX and verify parity
 	$(UV) python -m cascadia.ml.export
