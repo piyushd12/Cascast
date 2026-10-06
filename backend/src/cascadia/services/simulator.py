@@ -235,7 +235,10 @@ async def run() -> None:
         for _, msgs in rows:
             for mid, fields in msgs:
                 cmd_id = mid
-                twin.apply(bus.decode(fields))
+                try:
+                    twin.apply(bus.decode(fields))
+                except Exception as e:  # a bad command must never take the twin down
+                    log.warning("ignored command %s: %s", mid, e)
         twin.step(settings.sim_minutes_per_tick)
         await bus.publish(r, STATE_STREAM, twin.snapshot(tick))
         for ev in twin.events:

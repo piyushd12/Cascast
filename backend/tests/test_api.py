@@ -55,3 +55,9 @@ def test_copilot_disabled_without_key(client, monkeypatch):
     r = client.post("/api/copilot", json={"messages": [{"role": "user", "content": "hi"}]})
     events = [json.loads(line[6:]) for line in r.text.splitlines() if line.startswith("data: ")]
     assert events[0]["type"] == "error"
+
+
+def test_rejects_out_of_range_command_lines(client):
+    """Unvalidated ids used to crash the simulator process (IndexError in GridTwin.trip)."""
+    for bad in ([999], [-1]):
+        assert client.post("/api/commands", json={"cmd": "trip", "lines": bad}).status_code == 422

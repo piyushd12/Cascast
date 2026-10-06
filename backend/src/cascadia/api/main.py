@@ -190,6 +190,9 @@ class Command(BaseModel):
 
 @app.post("/api/commands", status_code=202)
 async def command(c: Command):
+    n = load_grid().n_branch
+    if any(not 0 <= e < n for e in c.lines):
+        raise HTTPException(422, f"branch ids must be in [0, {n - 1}]")
     if not hub.redis:
         raise HTTPException(503, "live simulation is not running")
     await bus.publish(hub.redis, COMMAND_STREAM, c.model_dump())
