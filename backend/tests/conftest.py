@@ -1,3 +1,4 @@
+import cascadia  # noqa: F401, I001  (first: pins BLAS threads before numpy loads)
 import numpy as np
 import pytest
 
