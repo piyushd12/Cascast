@@ -13,12 +13,15 @@ class Settings(BaseSettings):
     data_dir: Path = BACKEND_DIR / "data"
     redis_url: str = "redis://localhost:6379/0"
     database_url: str = "postgresql+asyncpg://cascadia:cascadia@localhost:5432/cascadia"
+    # Host headers the API answers to (blocks DNS-rebinding attacks from other web pages).
+    # For a LAN demo add the machine's IP: CASCADIA_ALLOWED_HOSTS='["localhost","192.168.1.20"]'
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
 
     # Simulator: each tick advances `sim_minutes_per_tick` simulated minutes,
     # once every `tick_seconds` real seconds.
     tick_seconds: float = 1.0
     sim_minutes_per_tick: float = 2.0
-    fault_rate_per_hour: float = 0.6  # random line faults per simulated hour (x3 during storms)
+    fault_rate_per_hour: float = 0.6  # random line faults per simulated hour (x5 during storms)
 
     # Risk engine
     verify_every: int = 10  # cross-check GNN against physics every N ticks

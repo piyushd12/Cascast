@@ -12,7 +12,7 @@ def client():
     # Point at unreachable services: the API must degrade gracefully.
     settings.redis_url = "redis://127.0.0.1:1/0"
     settings.database_url = "postgresql+asyncpg://x:x@127.0.0.1:1/x"
-    with TestClient(app) as c:
+    with TestClient(app, base_url="http://localhost") as c:
         yield c
 
 
@@ -72,3 +72,16 @@ def test_no_wildcard_cors(client):
     r = client.options("/api/commands", headers={"Origin": "https://evil.example",
                                                  "Access-Control-Request-Method": "POST"})
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_simple_cross_site_posts_are_not_parsed(client):
+    """CSRF: browsers send text/plain and form posts without a preflight; they must not act."""
+    for ctype in ("text/plain", "application/x-www-form-urlencoded"):
+        r = client.post("/api/commands", content='{"cmd": "restore_all"}',
+                        headers={"Content-Type": ctype})
+        assert r.status_code == 422
+
+
+def test_rejects_foreign_host_header(client):
+    """DNS rebinding: a page on evil.example resolving to 127.0.0.1 must not reach the API."""
+    assert client.get("/api/state", headers={"Host": "evil.example"}).status_code == 400

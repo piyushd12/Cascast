@@ -8,6 +8,7 @@ x-backend: &backend
     CASCADIA_REDIS_URL: redis://redis:6379/0
     CASCADIA_DATABASE_URL: postgresql+asyncpg://cascadia:cascadia@postgres:5432/cascadia
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    CASCADIA_ALLOWED_HOSTS: '${CASCADIA_ALLOWED_HOSTS:-["localhost","127.0.0.1"]}'
   depends_on:
     redis: { condition: service_healthy }
 

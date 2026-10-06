@@ -17,6 +17,7 @@ from typing import Literal
 import orjson
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -116,6 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Cascadia API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 # No CORS: nginx (prod) and Vite's proxy (dev) serve UI and API from one origin, so other
 # sites can't drive commands or the paid Copilot from a visitor's browser.
 

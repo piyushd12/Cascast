@@ -263,7 +263,7 @@ docker compose up --build
 
 Open **http://localhost:8080**. The trained model ships in `backend/artifacts/`, so no GPU or training is needed.
 
-> The stack binds to `127.0.0.1` only. The API has no authentication, so to demo it on your LAN, change the `web` port to `"8080:80"` in `docker-compose.yml` on a network you trust.
+> The stack binds to `127.0.0.1` only, and the API answers only to `localhost` Host headers (DNS-rebinding protection). It has no authentication, so to demo it on a LAN you trust, change the `web` port to `"8080:80"` in `docker-compose.yml` and add your IP to `CASCADIA_ALLOWED_HOSTS` in `.env`.
 
 ### Local development
 
