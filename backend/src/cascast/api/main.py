@@ -49,7 +49,12 @@ class Hub:
     async def pump(self) -> None:
         """Follow the Redis streams, update live state, persist and fan out."""
         r = self.redis
-        cursors = {STATE_STREAM: "$", RISK_STREAM: "$", EVENT_STREAM: "$"}
+        # Start from concrete ids, never "$": with "$" each XREAD only sees entries added after
+        # that call began, so events published right after a state message were silently missed.
+        cursors = {}
+        for s in (STATE_STREAM, RISK_STREAM, EVENT_STREAM):
+            last = await r.xrevrange(s, count=1)
+            cursors[s] = last[0][0] if last else "0-0"
         if latest := await bus.latest(r, STATE_STREAM):
             self.live.state, self.live.live = latest, True
         self.live.risk = await bus.latest(r, RISK_STREAM)
