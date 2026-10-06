@@ -56,7 +56,7 @@ export default function LivePage({ grid }: { grid: Grid }) {
           sub={acc && acc.checked ? `probability error · ${acc.checked} Monte Carlo checks` : `vs ${acc?.mc_runs ?? 40}-run Monte Carlo`} />
       </div>
 
-      <div className="grid min-h-0 gap-4 xl:h-[max(560px,calc(100vh-232px))] xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid min-h-0 gap-4 xl:h-[max(560px,calc(100vh-232px))] xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-rows-[minmax(0,1fr)]">
         <Panel title="Network"
           right={<Segmented value={mode} onChange={setMode}
             options={[{ value: 'loading', label: 'Line loading' }, { value: 'risk', label: 'N-1 vulnerability' }]} />}>

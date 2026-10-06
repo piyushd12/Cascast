@@ -33,7 +33,7 @@ export default function ModelPage() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={curve} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                 <CartesianGrid stroke="#1b2633" vertical={false} />
-                <XAxis dataKey="n1_seconds" type="number" scale="log" domain={['auto', 'auto']} {...AX}
+                <XAxis dataKey="n1_seconds" type="number" scale="log" domain={[0.1, 100]} ticks={[0.1, 0.3, 1, 3, 10, 30, 100]} {...AX}
                   tickFormatter={(v) => `${v < 1 ? v.toFixed(2) : v.toFixed(0)} s`} />
                 <YAxis {...AX} width={44} tickFormatter={(v) => `${v.toFixed(0)}`} unit=" pp" />
                 <Tooltip {...TIP} formatter={(v, n) => [`${Number(v).toFixed(2)} pp`, n === 'mae' ? 'Monte Carlo error' : 'GNN error']}

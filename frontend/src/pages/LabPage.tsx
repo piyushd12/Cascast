@@ -14,7 +14,7 @@ export default function LabPage({ grid }: { grid: Grid }) {
   const [params, setParams] = useSearchParams()
   const [lines, setLines] = useState<number[]>(() =>
     (params.get('lines') ?? '').split(',').filter(Boolean).map(Number).filter((n) => n >= 0 && n < grid.branches.length))
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(() => Number(params.get('load')) || 1)
   const [stage, setStage] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [mapView, setMapView] = useState<View>('gnn')
@@ -61,7 +61,7 @@ export default function LabPage({ grid }: { grid: Grid }) {
 
   return (
     <div className="grid gap-4 p-4 lg:p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Panel title="What-If Lab"
+      <Panel title="What-If Lab" className="xl:sticky xl:top-0 xl:self-start"
         right={view
           ? <Segmented value={mapView} onChange={(v) => { setMapView(v); setStage(0); setPlaying(v === 'replay') }}
               options={[{ value: 'gnn', label: 'GNN probability' }, { value: 'mc', label: 'Monte Carlo' }, { value: 'replay', label: 'Replay one cascade' }]} />
@@ -70,7 +70,7 @@ export default function LabPage({ grid }: { grid: Grid }) {
           loading={stageLoading ?? state?.loading} alive={stageAlive} risk={riskValues}
           stage={replay ? view.sample.stage : undefined} currentStage={stage}
           predicted={replay ? view.gnn.likely : undefined}
-          selected={lines} onLineClick={toggle} className="h-[62vh] min-h-[420px]" />
+          selected={lines} onLineClick={toggle} className="h-[62vh] min-h-[420px] xl:h-[calc(100vh-190px)]" />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2.5">
           <MapLegend mode={mode} />
           {replay && view.sample.n_stages > 0 && (

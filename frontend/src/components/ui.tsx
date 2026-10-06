@@ -12,7 +12,7 @@ export function Panel({ title, right, children, className }: {
           {right}
         </header>
       )}
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </section>
   )
 }
