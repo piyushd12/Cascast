@@ -16,7 +16,7 @@ export default function IncidentsPage() {
       <div className="grid grid-cols-3 gap-3">
         <Tile k="Incidents recorded" v={rows.length} />
         <Tile k="Cascades" v={cascades.length} />
-        <Tile k="Energy not served" v={`${Math.round(shed).toLocaleString()} MW`} />
+        <Tile k="Load shed (sum of events)" v={`${Math.round(shed).toLocaleString()} MW`} />
       </div>
       <Panel title="Incident history" right={<span className="text-xs text-muted">Persisted in Postgres · refreshes every 5 s</span>}>
         <div className="overflow-x-auto">
